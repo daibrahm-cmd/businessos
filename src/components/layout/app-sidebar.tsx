@@ -4,7 +4,8 @@
 // No mobile vira um sheet (comportamento do shadcn) que fecha ao navegar.
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House } from "lucide-react"
+import { useState } from "react"
+import { ChevronDown, Compass, FileText, House } from "lucide-react"
 
 import { ROTULOS_STATUS } from "@/components/cards/status-badge"
 import {
@@ -56,6 +57,11 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
 
+  // Mobile: as 4 seções ficam sempre visíveis e fixas; só os itens abrem/fecham (uma por vez).
+  // Começa aberta a seção da página atual.
+  const secaoAtual = pathname.split("/")[1]
+  const [secaoAberta, setSecaoAberta] = useState<string | null>(secaoAtual ?? null)
+
   // No mobile, navegar fecha o sheet
   const aoNavegar = () => {
     if (isMobile) setOpenMobile(false)
@@ -80,10 +86,26 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
       <SidebarContent className="gap-1 pb-2">
         {NAVEGACAO.map((secao) => (
           <SidebarGroup key={secao.slug} className="px-2 py-1.5">
-            <SidebarGroupLabel className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              {secao.titulo}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
+            {isMobile ? (
+              // Cabeçalho fixo e tocável (≥ 44 px) que abre/fecha os itens da seção
+              <button
+                type="button"
+                aria-expanded={secaoAberta === secao.slug}
+                onClick={() => setSecaoAberta(secaoAberta === secao.slug ? null : secao.slug)}
+                className="flex h-11 w-full items-center justify-between rounded-md px-2 text-xs font-medium tracking-wider text-muted-foreground uppercase outline-none focus-visible:ring-[3px] focus-visible:ring-sidebar-ring"
+              >
+                {secao.titulo}
+                <ChevronDown
+                  aria-hidden
+                  className={cn("size-4 transition-transform", secaoAberta === secao.slug && "rotate-180")}
+                />
+              </button>
+            ) : (
+              <SidebarGroupLabel className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                {secao.titulo}
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent className={cn(isMobile && secaoAberta !== secao.slug && "hidden")}>
               <SidebarMenu>
                 {secao.paginas.map((pagina) => {
                   const id = `${secao.slug}/${pagina.slug}` as DocId
@@ -122,6 +144,30 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
               <Link href="/" onClick={aoNavegar} aria-current={pathname === "/" ? "page" : undefined}>
                 <House />
                 <span>Início</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === "/comecar"} className={classeBotao}>
+              <Link
+                href="/comecar"
+                onClick={aoNavegar}
+                aria-current={pathname === "/comecar" ? "page" : undefined}
+              >
+                <Compass />
+                <span>Passo a passo</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname === "/briefing"} className={classeBotao}>
+              <Link
+                href="/briefing"
+                onClick={aoNavegar}
+                aria-current={pathname === "/briefing" ? "page" : undefined}
+              >
+                <FileText />
+                <span>Briefing</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

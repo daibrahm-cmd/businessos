@@ -29,8 +29,8 @@ export interface FieldInputProps {
 /** Valor sentinela do Select para "sem opção" (o Radix não aceita value=""). */
 const SELECAO_VAZIA = "__vazio__"
 
-// Alvo de toque ≥ 44 px no mobile; compacto a partir de md
-const ALTURA_CONTROLE = "h-11 md:h-9"
+// Controles mais altos: 48 px no mobile e 44 px no desktop (alvo de toque confortável)
+const ALTURA_CONTROLE = "h-12 md:h-11"
 
 /** Ids para aria-describedby (ajuda do pai, dica de lista e erro). */
 function descritoPor(id: string, campo: FieldDef, temErro: boolean): string | undefined {
@@ -84,7 +84,7 @@ export function FieldInput({ campo, valor, onChange, id, erro, disabled }: Field
       controle = (
         <Textarea
           {...comum}
-          className="field-sizing-content min-h-24"
+          className="field-sizing-content min-h-28"
           value={typeof valor === "string" ? valor : ""}
           maxLength={campo.maxCaracteres ?? 5000}
           placeholder={campo.placeholder}
@@ -128,7 +128,7 @@ export function FieldInput({ campo, valor, onChange, id, erro, disabled }: Field
             id={id}
             aria-invalid={comum["aria-invalid"]}
             aria-describedby={comum["aria-describedby"]}
-            className={cn("w-full", ALTURA_CONTROLE, "data-[size=default]:h-11 md:data-[size=default]:h-9")}
+            className={cn("w-full", ALTURA_CONTROLE, "data-[size=default]:h-12 md:data-[size=default]:h-11")}
           >
             <SelectValue />
           </SelectTrigger>
@@ -312,7 +312,7 @@ function TextareaLista({ valor, onChange, ...resto }: TextareaListaProps) {
   return (
     <Textarea
       {...resto}
-      className="field-sizing-content min-h-24"
+      className="field-sizing-content min-h-28"
       value={texto}
       onChange={(e) => {
         setTexto(e.target.value)

@@ -43,7 +43,7 @@ describe("definições de página", () => {
   it.each(DOC_IDS)("%s respeita as invariantes", (id) => {
     const def = obterDefinicao(id);
     expect(def.campos.length).toBeGreaterThanOrEqual(4);
-    expect(def.campos.length).toBeLessThanOrEqual(8);
+    expect(def.campos.length).toBeLessThanOrEqual(30);
     conferirCampos(def.campos, id);
     expect(def.relacionadosPadrao).not.toContain(id);
     expect(new Set(def.relacionadosPadrao).size).toBe(def.relacionadosPadrao.length);

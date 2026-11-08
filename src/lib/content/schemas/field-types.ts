@@ -28,6 +28,8 @@ interface FieldDefBase {
   ajuda?: string;
   /** Placeholder do input. */
   placeholder?: string;
+  /** Grupo temático (título da seção na página). Campos consecutivos com o mesmo grupo ficam juntos. */
+  grupo?: string;
   /**
    * Só tem efeito em campos de ITENS de coleção: impede salvar o item com o campo vazio.
    * Campos de página nunca são obrigatórios (a página é preenchida aos poucos).
@@ -143,7 +145,7 @@ export interface PageDefinition {
   descricao: string;
   /** Valor inicial de `relacionados` no template. */
   relacionadosPadrao: readonly DocId[];
-  /** 4–8 campos de valor único. */
+  /** 4–30 campos de valor único (agrupáveis por `grupo`). */
   campos: readonly FieldDef[];
   colecoes?: readonly CollectionDef[];
   /** Placeholder do editor de notas (corpo). */

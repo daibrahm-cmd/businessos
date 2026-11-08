@@ -35,7 +35,7 @@ import {
 import { calcularCompletude } from "@/lib/content/completude"
 import type { CodigoErro } from "@/lib/content/errors"
 import { hrefDoDocumento, obterPagina } from "@/lib/content/navigation"
-import type { PageDefinition } from "@/lib/content/schemas/field-types"
+import type { FieldDef, PageDefinition } from "@/lib/content/schemas/field-types"
 import type { ContentDoc, DocPatch, Item, ResumoCalculado, Status, ValorCampo } from "@/lib/content/types"
 import { formatarDataHora } from "@/lib/format"
 
@@ -145,6 +145,18 @@ function calcularDiferencas(base: ContentDoc, rascunho: Rascunho, definicao: Pag
 }
 
 const MENSAGEM_SAIR = "Você tem alterações não salvas. Sair mesmo assim?"
+
+/** Agrupa campos consecutivos pelo `grupo` (sem grupo → "Campos"), preservando a ordem. */
+function gruposDeCampos(campos: readonly FieldDef[]) {
+  const grupos: Array<{ titulo: string; campos: FieldDef[] }> = []
+  for (const campo of campos) {
+    const titulo = campo.grupo ?? "Campos"
+    const ultimo = grupos[grupos.length - 1]
+    if (ultimo && ultimo.titulo === titulo) ultimo.campos.push(campo)
+    else grupos.push({ titulo, campos: [campo] })
+  }
+  return grupos
+}
 
 export function PageEditor({ documento, definicao, resumos, onSalvar }: PageEditorProps) {
   const [base, setBase] = React.useState(documento)
@@ -358,19 +370,25 @@ export function PageEditor({ documento, definicao, resumos, onSalvar }: PageEdit
         )}
       </header>
 
-      {/* 2. Campos */}
-      <CardCollection titulo="Campos" chavePreferencia={`${documento.id}#campos`}>
-        {definicao.campos.map((campo) => (
-          <FieldCard
-            key={campo.nome}
-            campo={campo}
-            valor={rascunho.campos[campo.nome] ?? null}
-            onChange={(valor) => alterarCampo(campo.nome, valor)}
-            modificado={camposAlterados.has(campo.nome)}
-            erro={errosCampos[campo.nome]}
-          />
-        ))}
-      </CardCollection>
+      {/* 2. Campos (um bloco por grupo temático; sem grupo = "Campos") */}
+      {gruposDeCampos(definicao.campos).map((grupo, indice) => (
+        <CardCollection
+          key={`${grupo.titulo}-${indice}`}
+          titulo={grupo.titulo}
+          chavePreferencia={`${documento.id}#campos-${indice}`}
+        >
+          {grupo.campos.map((campo) => (
+            <FieldCard
+              key={campo.nome}
+              campo={campo}
+              valor={rascunho.campos[campo.nome] ?? null}
+              onChange={(valor) => alterarCampo(campo.nome, valor)}
+              modificado={camposAlterados.has(campo.nome)}
+              erro={errosCampos[campo.nome]}
+            />
+          ))}
+        </CardCollection>
+      ))}
 
       {/* 3. Coleções */}
       {definicao.colecoes?.map((colecao) => (

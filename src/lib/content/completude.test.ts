@@ -15,11 +15,11 @@ describe("calcularCompletude", () => {
   it("conta campos preenchidos (texto em branco e lista vazia não contam)", () => {
     const def = obterDefinicao("direcao/perfil-de-cliente-ideal");
     const doc = desserializar(EXEMPLO_PERFIL, def);
-    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 8, total: 8, percentual: 100 });
+    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 8, total: def.campos.length, percentual: 50 });
     doc.campos.quem_e = "   ";
     doc.campos.dores = [];
     doc.campos.quanto_paga_hoje = 0; // zero é um valor
-    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 6, total: 8, percentual: 75 });
+    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 6, total: def.campos.length, percentual: 38 });
   });
 
   it("coleção conta quando tem ao menos um item", () => {
@@ -34,6 +34,6 @@ describe("calcularCompletude", () => {
     const def = obterDefinicao("founder/objetivo");
     const doc = criarTemplate(def);
     doc.campos.meta_12_meses = "25 clientes";
-    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 1, total: 7, percentual: 14 });
+    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 1, total: def.campos.length, percentual: 5 });
   });
 });
