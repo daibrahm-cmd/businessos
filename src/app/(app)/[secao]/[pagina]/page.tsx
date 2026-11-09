@@ -13,6 +13,7 @@ import { obterDefinicao } from "@/lib/content/schemas"
 import { lerDocumento } from "@/lib/content/servico"
 import type { ContentDoc, ResumoCalculado } from "@/lib/content/types"
 
+import { criarOportunidadeDoLeadAction } from "./acoes-leads"
 import { PainelErroConteudo } from "../../_componentes/painel-erro-conteudo"
 
 // Conteúdo muda fora do app (agentes); sem generateStaticParams (D12).
@@ -79,6 +80,11 @@ export default async function PaginaEditavel({ params }: PageProps<"/[secao]/[pa
         onSalvar={salvarDocumento.bind(null, id)}
         onPedirIA={pedirIAAction.bind(null, id)}
         onGerarRelatorio={gerarRelatorioAction.bind(null, id)}
+        acoesDoItem={
+          id === "validacao/leads"
+            ? { leads: { rotulo: "Criar oportunidade", executar: criarOportunidadeDoLeadAction } }
+            : undefined
+        }
       />
     </>
   )

@@ -20,12 +20,16 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { PageEditor, type PageEditorProps } from "@/components/editor/page-editor"
 
+import type { AcaoDoItem } from "./gaveta-item"
 import { RelatorioPagina } from "./relatorio-pagina"
 
 export type PaginaRelatorioProps = Pick<
   PageEditorProps,
   "documento" | "definicao" | "resumos" | "onSalvar" | "onPedirIA" | "onGerarRelatorio"
->
+> & {
+  /** Ações extras na gaveta dos itens, por nome de coleção. */
+  acoesDoItem?: Record<string, AcaoDoItem>
+}
 
 export function PaginaRelatorio({
   documento,
@@ -34,6 +38,7 @@ export function PaginaRelatorio({
   onSalvar,
   onPedirIA,
   onGerarRelatorio,
+  acoesDoItem,
 }: PaginaRelatorioProps) {
   const [editando, setEditando] = React.useState(false)
   const [pendente, setPendente] = React.useState(false)
@@ -81,7 +86,7 @@ export function PaginaRelatorio({
 
   return (
     <>
-      <RelatorioPagina documento={documento} definicao={definicao} resumos={resumos} acoes={acoes} onSalvar={onSalvar} />
+      <RelatorioPagina documento={documento} definicao={definicao} resumos={resumos} acoes={acoes} onSalvar={onSalvar} acoesDoItem={acoesDoItem} />
 
       <Dialog open={editando} onOpenChange={aoMudarAberto}>
         <DialogContent className="flex h-[94dvh] max-h-[94dvh] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">

@@ -3,7 +3,8 @@
 // Gaveta lateral (direita) de um item de coleção: mostra todos os campos e permite editar na hora.
 // Salva só o item alterado, pela mesma callback do editor da página (com checagem de conflito).
 import * as React from "react"
-import { Pencil } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { FilePlus2, Pencil } from "lucide-react"
 import { toast } from "sonner"
 
 import { CorpoItemForm } from "@/components/cards/item-form"
@@ -17,7 +18,15 @@ import type { CollectionDef } from "@/lib/content/schemas/field-types"
 import type { Item } from "@/lib/content/types"
 import { cn } from "@/lib/utils"
 
+/** Ação extra de um item (ex.: "Criar oportunidade"): chama uma Server Action com o id do item. */
+export interface AcaoDoItem {
+  rotulo: string
+  executar: (itemId: string) => Promise<{ ok: boolean; mensagem: string; href?: string }>
+}
+
 export interface GavetaItemProps {
+  /** Ação extra mostrada sob o botão de editar. */
+  acao?: AcaoDoItem
   colecao: CollectionDef
   /** Item aberto; ausente = gaveta fechada. */
   item?: Item
@@ -39,14 +48,27 @@ export function GavetaItem(props: GavetaItemProps) {
   )
 }
 
-function ConteudoGaveta({ colecao, item, atualizadoEm, onSalvar }: GavetaItemProps & { item: Item }) {
+function ConteudoGaveta({ colecao, item, atualizadoEm, onSalvar, acao }: GavetaItemProps & { item: Item }) {
+  const router = useRouter()
   const [editando, setEditando] = React.useState(false)
+  const [executando, iniciarAcao] = React.useTransition()
   const [salvando, iniciar] = React.useTransition()
 
   const campoTitulo = colecao.campos.find((c) => c.nome === colecao.campoTitulo)
   const titulo = campoTitulo && !estaVazio(item[campoTitulo.nome]) ? textoDoValor(campoTitulo, item[campoTitulo.nome]) : colecao.rotuloItem
   const campoSubtitulo = colecao.campos.find((c) => c.nome === colecao.campoSubtitulo)
   const subtitulo = campoSubtitulo && !estaVazio(item[campoSubtitulo.nome]) ? textoDoValor(campoSubtitulo, item[campoSubtitulo.nome]) : null
+
+  const executarAcao = () => {
+    if (!acao) return
+    iniciarAcao(async () => {
+      const r = await acao.executar(item.id)
+      const href = r.href
+      const opcoes = href ? { action: { label: "Ver", onClick: () => router.push(href) } } : undefined
+      if (r.ok) toast.success(r.mensagem, opcoes)
+      else toast.error(r.mensagem, opcoes)
+    })
+  }
 
   const salvar = (novo: Item) => {
     iniciar(async () => {
@@ -100,11 +122,17 @@ function ConteudoGaveta({ colecao, item, atualizadoEm, onSalvar }: GavetaItemPro
       </div>
 
       {!editando && (
-        <div className="border-t p-4 md:px-6">
+        <div className="space-y-2 border-t p-4 md:px-6">
           <Button onClick={() => setEditando(true)} disabled={salvando} className="h-11 w-full md:h-9">
             <Pencil aria-hidden />
             Editar {colecao.rotuloItem.toLowerCase()}
           </Button>
+          {acao && (
+            <Button variant="outline" onClick={executarAcao} disabled={executando} aria-busy={executando} className="h-11 w-full md:h-9">
+              <FilePlus2 aria-hidden />
+              {acao.rotulo}
+            </Button>
+          )}
         </div>
       )}
     </>

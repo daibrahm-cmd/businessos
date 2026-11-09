@@ -40,6 +40,14 @@ export function CelulaItem({ campo, valor }: { campo: FieldDef; valor: ValorCamp
       </span>
     )
   }
+  // Endereço da web: vira link que abre em outra aba
+  if (campo.tipo === "texto-curto" && /^https?:\/\//i.test(String(valor))) {
+    return (
+      <a href={String(valor)} target="_blank" rel="noreferrer noopener" className="text-primary underline underline-offset-2 [overflow-wrap:anywhere]">
+        {String(valor)}
+      </a>
+    )
+  }
   // Data só com dia: textoDoValor trata sem deslocar o fuso (formatarDataCurta é para data e hora)
   return <span className={cn(campo.tipo === "data" && "tabular-nums")}>{textoDoValor(campo, valor)}</span>
 }

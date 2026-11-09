@@ -6,7 +6,7 @@ import { Anel, Bloco, CARD, Indicador, ROTULO } from "@/components/relatorio/pec
 import { CabecalhoPagina } from "@/components/relatorio/cabecalho-pagina"
 import { NotasEstruturadas } from "@/components/relatorio/notas-estruturadas"
 import { CelulaItem } from "@/components/relatorio/celula-item"
-import { GavetaItem } from "@/components/relatorio/gaveta-item"
+import { GavetaItem, type AcaoDoItem } from "@/components/relatorio/gaveta-item"
 import { CampoNaoPreenchido } from "@/components/relatorio/nao-preenchido"
 import { ordenarItens } from "@/components/cards/collection-section"
 import { StatusBadge } from "@/components/cards/status-badge"
@@ -30,6 +30,8 @@ export interface RelatorioPaginaProps {
   acoes?: React.ReactNode
   /** Salva um item editado na gaveta lateral; sem ela os cards ficam só para leitura. */
   onSalvar?: PageEditorProps["onSalvar"]
+  /** Ações extras na gaveta, por nome de coleção (ex.: leads → "Criar oportunidade"). */
+  acoesDoItem?: Record<string, AcaoDoItem>
 }
 
 function formatarResumo(r: ResumoCalculado): string {
@@ -118,6 +120,68 @@ function propsClicaveis(onAbrir: (() => void) | undefined, rotulo: string) {
 
 const CLASSE_CLICAVEL =
   "cursor-pointer transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+
+/** Quantos gatilhos aparecem como chip no card da persona; o resto vira "+N" (a gaveta mostra todos). */
+const CHIPS_VISIVEIS = 3
+
+/** Card de persona: número, nome grande, frase em destaque, perfil em cinza, momento com filete e gatilhos em chips. */
+export function CartaoPersona({ colecao, item, indice, onAbrir }: { colecao: CollectionDef; item: Item; indice: number } & CartaoClicavel) {
+  const lista = colecao.lista
+  const campo = (nome?: string) => colecao.campos.find((c) => c.nome === nome)
+  const texto = (nome?: string) => {
+    const c = campo(nome)
+    return c && !estaVazio(item[c.nome]) ? textoDoValor(c, item[c.nome]) : null
+  }
+  const titulo = texto(colecao.campoTitulo) ?? colecao.rotuloItem
+  const frase = texto(colecao.campoSubtitulo)
+  const perfil = texto(lista?.apoioTitulo)
+  const momento = texto(lista?.texto)
+  const campoChips = campo(lista?.chips)
+  const valorChips = campoChips ? item[campoChips.nome] : null
+  const chips = Array.isArray(valorChips) ? valorChips : []
+  const resto = chips.length - CHIPS_VISIVEIS
+
+  return (
+    <article {...propsClicaveis(onAbrir, titulo)} className={cn(CARD, "space-y-4 outline-none", onAbrir && CLASSE_CLICAVEL)}>
+      <header className="flex items-start gap-4">
+        <span
+          aria-hidden
+          className="w-12 shrink-0 text-4xl leading-none font-bold text-primary tabular-nums"
+        >
+          {String(indice + 1).padStart(2, "0")}
+        </span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <h3 className="text-lg leading-tight font-bold break-words">{titulo}</h3>
+          {frase && <p className="text-sm leading-snug font-medium break-words text-primary">{frase}</p>}
+          {perfil && <p className="text-xs leading-snug break-words text-muted-foreground">{perfil}</p>}
+        </div>
+      </header>
+
+      {momento && (
+        <div className="space-y-1 border-l-2 border-primary/40 pl-3">
+          <p className={ROTULO_CAMPO}>{campo(lista?.texto)?.rotulo}</p>
+          <p className="line-clamp-3 text-[13px] leading-relaxed break-words">{momento}</p>
+        </div>
+      )}
+
+      {chips.length > 0 && (
+        <div className="space-y-2">
+          <p className={ROTULO_CAMPO}>{campoChips?.rotulo}</p>
+          <ul className="flex flex-wrap gap-2">
+            {chips.slice(0, CHIPS_VISIVEIS).map((g, i) => (
+              <li key={i} title={String(g)} className="max-w-full truncate rounded-full bg-foreground/10 px-3 py-1 text-xs">
+                {String(g)}
+              </li>
+            ))}
+            {resto > 0 && (
+              <li className="rounded-full px-3 py-1 text-xs text-muted-foreground ring-1 ring-foreground/25">+{resto}</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </article>
+  )
+}
 
 /** Item em card de lista (um por linha): título, apoio, subtítulo, texto e os dados curtos no rodapé/lado direito. */
 function CartaoLista({ colecao, item, onAbrir }: { colecao: CollectionDef; item: Item } & CartaoClicavel) {
@@ -211,6 +275,7 @@ function BlocoColecao({
   resumos,
   atualizadoEm,
   onSalvar,
+  acao,
 }: {
   colecao: CollectionDef
   itens: Item[]
@@ -218,6 +283,7 @@ function BlocoColecao({
   atualizadoEm: string
   /** Sem esta callback os cards não abrem a gaveta (só leitura). */
   onSalvar?: PageEditorProps["onSalvar"]
+  acao?: AcaoDoItem
 }) {
   const ordenados = ordenarItens(itens, colecao)
   const [abertoId, setAbertoId] = React.useState<string | null>(null)
@@ -243,9 +309,13 @@ function BlocoColecao({
       ) : colecao.lista ? (
         // Lista: um card por linha em todas as telas (sem tabela)
         <div className="space-y-3">
-          {ordenados.map((item) => (
-            <CartaoLista key={item.id} colecao={colecao} item={item} onAbrir={abrir(item.id)} />
-          ))}
+          {ordenados.map((item, i) =>
+            colecao.lista?.variante === "persona" ? (
+              <CartaoPersona key={item.id} colecao={colecao} item={item} indice={i} onAbrir={abrir(item.id)} />
+            ) : (
+              <CartaoLista key={item.id} colecao={colecao} item={item} onAbrir={abrir(item.id)} />
+            ),
+          )}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -261,6 +331,7 @@ function BlocoColecao({
           onFechar={() => setAbertoId(null)}
           atualizadoEm={atualizadoEm}
           onSalvar={onSalvar}
+          acao={acao}
         />
       )}
     </Bloco>
@@ -269,7 +340,7 @@ function BlocoColecao({
 
 // ---------- Relatório ----------
 
-export function RelatorioPagina({ documento, definicao, resumos, acoes, onSalvar }: RelatorioPaginaProps) {
+export function RelatorioPagina({ documento, definicao, resumos, acoes, onSalvar, acoesDoItem }: RelatorioPaginaProps) {
   const completude = calcularCompletude(documento, definicao)
   const grupos = gruposDeCampos(definicao.campos)
   // Notas com estrutura (entradas, grupos, "Rótulo: texto") ganham o layout de cartões; o resto continua texto corrido
@@ -343,6 +414,7 @@ export function RelatorioPagina({ documento, definicao, resumos, acoes, onSalvar
           resumos={resumos[colecao.nome] ?? []}
           atualizadoEm={documento.atualizado_em}
           onSalvar={onSalvar}
+          acao={acoesDoItem?.[colecao.nome]}
         />
       ))}
 

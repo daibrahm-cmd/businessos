@@ -121,6 +121,13 @@ export interface ListaCards {
   texto?: string;
   /** Campos curtos mostrados lado a lado no rodapé do card (selo, barra de pontos, data). */
   meta?: readonly string[];
+  /** Campo lista-texto exibido como chips no card (ex.: gatilhos da persona). */
+  chips?: string;
+  /**
+   * "persona": card com número, título grande, subtítulo em destaque, apoio em cinza,
+   * texto com filete e chips. Sem isto, o card padrão de lista.
+   */
+  variante?: "persona";
 }
 
 export interface CollectionDef {
@@ -131,7 +138,7 @@ export interface CollectionDef {
   /** Rótulo de um item (singular), ex.: "Cliente". Usado em "Adicionar cliente". */
   rotuloItem: string;
   descricao?: string;
-  /** Campos de cada item (4–10). */
+  /** Campos de cada item (4–12). */
   campos: readonly FieldDef[];
   /** Campo exibido como título do card (deve ser obrigatorio: true). */
   campoTitulo: string;
