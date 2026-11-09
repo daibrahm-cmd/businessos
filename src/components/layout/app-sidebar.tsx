@@ -72,7 +72,7 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
   }
 
   // Alvo de toque ≥ 44 px no mobile; compacto no desktop. Itens das seções: fonte ~30% menor (14 → 10 px), sem ícones.
-  const classeBotao = "h-11 text-[11.5px] md:h-8 data-active:bg-[#3F495A] data-active:text-[#EFEFEF]"
+  const classeBotao = "h-11 text-[11.5px] md:h-8 data-active:bg-[#3F495A] data-active:text-[#EFEFEF] dark:data-active:bg-[#B0C2C2] dark:data-active:text-[#373634]"
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -120,6 +120,17 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
                     aria-current={pathname === "/comecar" ? "page" : undefined}
                   >
                     <span>Passo a passo</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/oportunidades"} className={classeBotao}>
+                  <Link
+                    href="/oportunidades"
+                    onClick={aoNavegar}
+                    aria-current={pathname === "/oportunidades" ? "page" : undefined}
+                  >
+                    <span>Oportunidades</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

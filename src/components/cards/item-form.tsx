@@ -67,13 +67,15 @@ export function ItemForm(props: ItemFormProps) {
   )
 }
 
-function CorpoItemForm({
+/** Corpo do formulário, reutilizável fora do Dialog (a gaveta do lead usa). onCancelar troca o fechar do Dialog. */
+export function CorpoItemForm({
   colecao,
   itemInicial,
   onConfirmar,
   onAbertoChange,
   errosServidor,
-}: ItemFormProps) {
+  onCancelar,
+}: ItemFormProps & { onCancelar?: () => void }) {
   const [item, setItem] = React.useState<Item>(() =>
     itemInicial ? { ...itemVazio(colecao), ...itemInicial } : itemVazio(colecao),
   )
@@ -144,11 +146,17 @@ function CorpoItemForm({
       })}
 
       <DialogFooter>
-        <DialogClose asChild>
-          <Button type="button" variant="outline" className="h-11 md:h-8">
+        {onCancelar ? (
+          <Button type="button" variant="outline" className="h-11 md:h-8" onClick={onCancelar}>
             Cancelar
           </Button>
-        </DialogClose>
+        ) : (
+          <DialogClose asChild>
+            <Button type="button" variant="outline" className="h-11 md:h-8">
+              Cancelar
+            </Button>
+          </DialogClose>
+        )}
         <Button type="submit" className="h-11 md:h-8">
           Concluir
         </Button>

@@ -71,7 +71,7 @@ export function PaginaRelatorio({ documento, definicao, resumos, onSalvar }: Pag
 
   return (
     <>
-      <RelatorioPagina documento={documento} definicao={definicao} resumos={resumos} acoes={acoes} />
+      <RelatorioPagina documento={documento} definicao={definicao} resumos={resumos} acoes={acoes} onSalvar={onSalvar} />
 
       <Dialog open={editando} onOpenChange={aoMudarAberto}>
         <DialogContent className="flex h-[94dvh] max-h-[94dvh] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">

@@ -113,6 +113,16 @@ export type ResumoDef =
       filtro?: { campo: string; valor: string };
     };
 
+/** Cards em lista: o que aparece em cada card além do título, do subtítulo e do destaque. */
+export interface ListaCards {
+  /** Campo em texto pequeno logo abaixo do título (ex.: cargo). */
+  apoioTitulo?: string;
+  /** Campo de texto corrido, limitado a 2 linhas no card (ex.: a nota do lead). */
+  texto?: string;
+  /** Campos curtos mostrados lado a lado no rodapé do card (selo, barra de pontos, data). */
+  meta?: readonly string[];
+}
+
 export interface CollectionDef {
   /** Nome da coleção (snake_case, plural). Gravado em item.colecao. */
   nome: string;
@@ -121,7 +131,7 @@ export interface CollectionDef {
   /** Rótulo de um item (singular), ex.: "Cliente". Usado em "Adicionar cliente". */
   rotuloItem: string;
   descricao?: string;
-  /** Campos de cada item (4–8). */
+  /** Campos de cada item (4–10). */
   campos: readonly FieldDef[];
   /** Campo exibido como título do card (deve ser obrigatorio: true). */
   campoTitulo: string;
@@ -132,6 +142,11 @@ export interface CollectionDef {
   /** Ordenação de exibição (não altera a ordem gravada). Padrão: ordem do arquivo. */
   ordenarPor?: { campo: string; direcao: "asc" | "desc" };
   resumos?: readonly ResumoDef[];
+  /**
+   * Exibe os itens como cards em lista (um card por linha, sem tabela) e abre uma gaveta lateral ao clicar.
+   * Sem isto, os itens aparecem em grade de cards.
+   */
+  lista?: ListaCards;
   /** Padrão: 500. */
   maxItens?: number;
 }

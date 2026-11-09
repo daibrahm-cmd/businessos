@@ -498,7 +498,7 @@ export interface CollectionDef {
   /** Rótulo de um item (singular), ex.: "Cliente". Usado em "Adicionar cliente". */
   rotuloItem: string;
   descricao?: string;
-  /** Campos de cada item (4–8). */
+  /** Campos de cada item (4–10). */
   campos: readonly FieldDef[];
   /** Campo exibido como título do card (deve ser obrigatorio: true). */
   campoTitulo: string;
@@ -735,7 +735,7 @@ export const DEFINICOES: Readonly<Record<DocId, PageDefinition>>; // as 12, inde
 export function obterDefinicao(id: DocId): PageDefinition;         // nunca undefined para DocId válido
 ```
 
-Invariantes verificadas por teste (§12): 12 definições, uma por id da navegação; 4–8 `campos` por página; 4–8 campos por coleção; nomes únicos e snake_case; nenhum campo chamado `id`/`colecao`; `selecao` com ≥ 2 opções de valores únicos kebab-case; `campoTitulo` existe e é `obrigatorio`; `campoDestaque` é `selecao`; campos citados em `resumos`/`ordenarPor` existem e têm o tipo certo; `relacionadosPadrao` sem o próprio id.
+Invariantes verificadas por teste (§12): 12 definições, uma por id da navegação; 4–8 `campos` por página; 4–10 campos por coleção; nomes únicos e snake_case; nenhum campo chamado `id`/`colecao`; `selecao` com ≥ 2 opções de valores únicos kebab-case; `campoTitulo` existe e é `obrigatorio`; `campoDestaque` é `selecao`; campos citados em `resumos`/`ordenarPor` existem e têm o tipo certo; `relacionadosPadrao` sem o próprio id.
 
 ### 3.6 Opções reutilizadas
 

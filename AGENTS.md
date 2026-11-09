@@ -155,6 +155,7 @@ curl -X POST http://127.0.0.1:3000/api/workflow -H "Content-Type: application/js
 | `validacao` ([agents/validacao.md](agents/validacao.md)) | Validador (testes e primeiros clientes) | `direcao/tese-de-valor`, `direcao/oferta`, `validacao/oferta`, `validacao/primeiros-clientes`, `validacao/fluxo-de-caixa`, `founder/objetivo` | `validacao/oferta`, `validacao/primeiros-clientes` |
 | `erp` ([agents/erp.md](agents/erp.md)) | Operações e ERP | `caixa/erp`, `caixa/fluxo-de-caixa`, `founder/estilo-de-vida`, `direcao/oferta` | `caixa/erp` |
 | `revisor-de-contexto` ([agents/revisor-de-contexto.md](agents/revisor-de-contexto.md)) | Revisor de qualidade e coerência do contexto | as 12 páginas | nenhuma (só lê) |
+| `prospeccao-de-leads` ([agents/prospeccao-de-leads.md](agents/prospeccao-de-leads.md)) | Prospector de leads | `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor`, `validacao/leads` | `validacao/leads` |
 | `assistente-de-arranque` ([agents/assistente-de-arranque.md](agents/assistente-de-arranque.md)) | Distribui um texto livre nos primeiros campos | `founder/*` e `direcao/*` (7 páginas) | as mesmas 7 páginas |
 
 | Skill | Para que serve |

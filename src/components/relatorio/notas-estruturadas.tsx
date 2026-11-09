@@ -16,7 +16,7 @@ const RE_ETIQUETA = /(\[HIP\]|\[FATO\]|não encontrad[oa])/gi
 const ESTILO_ETIQUETA = "mx-0.5 inline-block rounded-full px-1.5 py-px align-middle text-[10px] font-bold tracking-wider uppercase"
 
 function comEtiquetas(nos: React.ReactNode[], chave: string): React.ReactNode[] {
-  return nos.flatMap((no, n) => {
+  return nos.flatMap((no, n): React.ReactNode[] => {
     if (typeof no !== "string") return [no]
     return no.split(RE_ETIQUETA).map((parte, k) => {
       const c = `${chave}-${n}-${k}`
@@ -207,7 +207,7 @@ function Entrada({ entrada, indice }: { entrada: EntradaNota; indice: number }) 
   const cabecalho = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
       {entrada.autor && (
-        <Badge variant="secondary" className="bg-[#B0C2C2] font-mono text-xs text-[#373634]">
+        <Badge variant="secondary" className="bg-[#E4FE65] font-mono text-xs text-[#373634]">
           {entrada.autor}
         </Badge>
       )}

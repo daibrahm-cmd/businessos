@@ -55,7 +55,7 @@ describe("definições de página", () => {
       const onde = `${id}#${col.nome}`;
       expect(col.nome).toMatch(RE_SNAKE);
       expect(col.campos.length, onde).toBeGreaterThanOrEqual(4);
-      expect(col.campos.length, onde).toBeLessThanOrEqual(8);
+      expect(col.campos.length, onde).toBeLessThanOrEqual(10);
       conferirCampos(col.campos, onde);
 
       const campo = (nome: string) => col.campos.find((c) => c.nome === nome);
@@ -63,6 +63,9 @@ describe("definições de página", () => {
       expect(titulo, `${onde}: campoTitulo existe`).toBeDefined();
       expect(titulo?.obrigatorio, `${onde}: campoTitulo obrigatório`).toBe(true);
       if (col.campoSubtitulo) expect(campo(col.campoSubtitulo), `${onde}: subtítulo`).toBeDefined();
+      for (const nome of [col.lista?.apoioTitulo, col.lista?.texto, ...(col.lista?.meta ?? [])]) {
+        if (nome) expect(campo(nome), `${onde}: lista usa ${nome}`).toBeDefined();
+      }
       if (col.campoDestaque) expect(campo(col.campoDestaque)?.tipo, `${onde}: destaque`).toBe("selecao");
       if (col.ordenarPor) expect(campo(col.ordenarPor.campo), `${onde}: ordenarPor`).toBeDefined();
 

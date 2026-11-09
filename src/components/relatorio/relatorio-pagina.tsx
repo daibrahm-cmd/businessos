@@ -5,12 +5,14 @@ import * as React from "react"
 import { Anel, Bloco, CARD, Indicador, ROTULO } from "@/components/relatorio/pecas"
 import { CabecalhoPagina } from "@/components/relatorio/cabecalho-pagina"
 import { NotasEstruturadas } from "@/components/relatorio/notas-estruturadas"
+import { CelulaItem } from "@/components/relatorio/celula-item"
+import { GavetaItem } from "@/components/relatorio/gaveta-item"
 import { CampoNaoPreenchido } from "@/components/relatorio/nao-preenchido"
 import { ordenarItens } from "@/components/cards/collection-section"
 import { StatusBadge } from "@/components/cards/status-badge"
 import { textoDoValor } from "@/components/cards/field-value"
 import { autorLegivel, estaVazio, formatarDataCurta, nuncaSalvo } from "@/components/cards/valores"
-import { gruposDeCampos } from "@/components/editor/page-editor"
+import { gruposDeCampos, type PageEditorProps } from "@/components/editor/page-editor"
 import { Badge } from "@/components/ui/badge"
 import { calcularCompletude } from "@/lib/content/completude"
 import type { CollectionDef, FieldDef, PageDefinition } from "@/lib/content/schemas/field-types"
@@ -26,6 +28,8 @@ export interface RelatorioPaginaProps {
   resumos: Record<string, ResumoCalculado[]>
   /** Botões do cabeçalho (Editar, Aprovar). */
   acoes?: React.ReactNode
+  /** Salva um item editado na gaveta lateral; sem ela os cards ficam só para leitura. */
+  onSalvar?: PageEditorProps["onSalvar"]
 }
 
 function formatarResumo(r: ResumoCalculado): string {
@@ -90,7 +94,68 @@ function CartaoCampo({ campo, valor }: { campo: FieldDef; valor: ValorCampo }) {
 
 // ---------- Coleções ----------
 
-function CartaoItem({ colecao, item }: { colecao: CollectionDef; item: Item }) {
+/** Props de um card clicável: abre a gaveta lateral do item. */
+interface CartaoClicavel {
+  onAbrir?: () => void
+}
+
+/** Atributos que tornam um card inteiro clicável e acessível pelo teclado (Enter ou Espaço). */
+function propsClicaveis(onAbrir: (() => void) | undefined, rotulo: string) {
+  if (!onAbrir) return {}
+  return {
+    role: "button" as const,
+    tabIndex: 0,
+    "aria-label": `Abrir ${rotulo}`,
+    onClick: onAbrir,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault()
+        onAbrir()
+      }
+    },
+  }
+}
+
+const CLASSE_CLICAVEL =
+  "cursor-pointer transition-colors hover:bg-foreground/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+
+/** Item em card de lista (um por linha): título, apoio, subtítulo, texto e os dados curtos no rodapé/lado direito. */
+function CartaoLista({ colecao, item, onAbrir }: { colecao: CollectionDef; item: Item } & CartaoClicavel) {
+  const lista = colecao.lista
+  const campo = (nome?: string) => colecao.campos.find((c) => c.nome === nome)
+  const texto = (nome?: string) => {
+    const c = campo(nome)
+    return c && !estaVazio(item[c.nome]) ? textoDoValor(c, item[c.nome]) : null
+  }
+  const titulo = texto(colecao.campoTitulo) ?? colecao.rotuloItem
+  const destaque = campo(colecao.campoDestaque)
+  const meta = (lista?.meta ?? []).map(campo).filter((c): c is FieldDef => Boolean(c))
+
+  return (
+    <article {...propsClicaveis(onAbrir, titulo)} className={cn(CARD, "outline-none", onAbrir && CLASSE_CLICAVEL)}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
+        <div className="min-w-0 flex-1 space-y-1">
+          <h3 className="text-sm leading-snug font-bold break-words">{titulo}</h3>
+          {texto(lista?.apoioTitulo) && <p className="text-xs break-words text-muted-foreground">{texto(lista?.apoioTitulo)}</p>}
+          {texto(colecao.campoSubtitulo) && <p className="text-[13px] font-medium break-words">{texto(colecao.campoSubtitulo)}</p>}
+          {texto(lista?.texto) && (
+            <p className="line-clamp-2 pt-1 text-[13px] leading-snug break-words text-muted-foreground">{texto(lista?.texto)}</p>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] md:max-w-[22rem] md:shrink-0 md:justify-end">
+          {destaque && <CelulaItem campo={destaque} valor={item[destaque.nome] ?? null} />}
+          {meta.map((c) => (
+            <span key={c.nome} title={c.rotulo}>
+              <CelulaItem campo={c} valor={item[c.nome] ?? null} />
+            </span>
+          ))}
+        </div>
+      </div>
+    </article>
+  )
+}
+
+function CartaoItem({ colecao, item, onAbrir }: { colecao: CollectionDef; item: Item } & CartaoClicavel) {
   const campoTitulo = colecao.campos.find((c) => c.nome === colecao.campoTitulo)
   const campoSubtitulo = colecao.campos.find((c) => c.nome === colecao.campoSubtitulo)
   const campoDestaque = colecao.campos.find((c) => c.nome === colecao.campoDestaque)
@@ -105,7 +170,7 @@ function CartaoItem({ colecao, item }: { colecao: CollectionDef; item: Item }) {
 
   return (
     // zoom 0.9: reduz o card inteiro em 10%, de forma proporcional
-    <article className={cn(CARD, "space-y-4 [zoom:0.9]")}>
+    <article {...propsClicaveis(onAbrir, titulo)} className={cn(CARD, "space-y-4 [zoom:0.9] outline-none", onAbrir && CLASSE_CLICAVEL)}>
       <header className="space-y-1.5">
         {campoDestaque && !estaVazio(item[campoDestaque.nome]) && (
           // "Hipótese" ganha caixa verde (cor primária da marca); os demais valores seguem em contorno
@@ -144,12 +209,20 @@ function BlocoColecao({
   colecao,
   itens,
   resumos,
+  atualizadoEm,
+  onSalvar,
 }: {
   colecao: CollectionDef
   itens: Item[]
   resumos: ResumoCalculado[]
+  atualizadoEm: string
+  /** Sem esta callback os cards não abrem a gaveta (só leitura). */
+  onSalvar?: PageEditorProps["onSalvar"]
 }) {
   const ordenados = ordenarItens(itens, colecao)
+  const [abertoId, setAbertoId] = React.useState<string | null>(null)
+  const aberto = ordenados.find((i) => i.id === abertoId)
+  const abrir = (id: string) => (onSalvar ? () => setAbertoId(id) : undefined)
   return (
     <Bloco
       etiqueta={colecao.rotulo}
@@ -157,7 +230,7 @@ function BlocoColecao({
       descricao={colecao.descricao}
     >
       {resumos.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={cn("grid gap-3 sm:grid-cols-2", resumos.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
           {resumos.map((r) => (
             <Indicador key={r.rotulo} rotulo={r.rotulo} valor={formatarResumo(r)} />
           ))}
@@ -167,12 +240,28 @@ function BlocoColecao({
         <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground italic">
           Nenhum {colecao.rotuloItem.toLowerCase()} ainda.
         </p>
+      ) : colecao.lista ? (
+        // Lista: um card por linha em todas as telas (sem tabela)
+        <div className="space-y-3">
+          {ordenados.map((item) => (
+            <CartaoLista key={item.id} colecao={colecao} item={item} onAbrir={abrir(item.id)} />
+          ))}
+        </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ordenados.map((item) => (
-            <CartaoItem key={item.id} colecao={colecao} item={item} />
+            <CartaoItem key={item.id} colecao={colecao} item={item} onAbrir={abrir(item.id)} />
           ))}
         </div>
+      )}
+      {onSalvar && (
+        <GavetaItem
+          colecao={colecao}
+          item={aberto}
+          onFechar={() => setAbertoId(null)}
+          atualizadoEm={atualizadoEm}
+          onSalvar={onSalvar}
+        />
       )}
     </Bloco>
   )
@@ -180,7 +269,7 @@ function BlocoColecao({
 
 // ---------- Relatório ----------
 
-export function RelatorioPagina({ documento, definicao, resumos, acoes }: RelatorioPaginaProps) {
+export function RelatorioPagina({ documento, definicao, resumos, acoes, onSalvar }: RelatorioPaginaProps) {
   const completude = calcularCompletude(documento, definicao)
   const grupos = gruposDeCampos(definicao.campos)
   // Notas com estrutura (entradas, grupos, "Rótulo: texto") ganham o layout de cartões; o resto continua texto corrido
@@ -252,6 +341,8 @@ export function RelatorioPagina({ documento, definicao, resumos, acoes }: Relato
           colecao={colecao}
           itens={documento.itens.filter((i) => i.colecao === colecao.nome)}
           resumos={resumos[colecao.nome] ?? []}
+          atualizadoEm={documento.atualizado_em}
+          onSalvar={onSalvar}
         />
       ))}
 
