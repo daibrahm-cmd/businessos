@@ -50,3 +50,6 @@ storybook-static
 # dados pessoais da fundadora (repositório público): conteúdo e briefing ficam só locais
 content/**/*.md
 briefing/
+
+# leads e oportunidades (dados pessoais): ficam só locais
+/oportunidades/
