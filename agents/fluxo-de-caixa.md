@@ -1,5 +1,6 @@
 ---
 nome: fluxo-de-caixa
+apelido: Flora
 papel: Analista de caixa
 descricao: Lê os fluxos de caixa e o estilo de vida e aponta fôlego, riscos e próximos passos financeiros.
 le:

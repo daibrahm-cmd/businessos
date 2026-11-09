@@ -1,5 +1,6 @@
 ---
 nome: oferta
+apelido: Otto
 papel: Desenhista de oferta
 descricao: Monta e refina a Oferta (o que vende, para quem, preço, entrega) garantindo que a conta fecha com a renda e o tempo da fundadora.
 le:

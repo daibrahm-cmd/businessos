@@ -11,6 +11,7 @@ export const RE_NOME_SKILL = /^[a-z0-9][a-z0-9-]*$/;
 /** Front matter de agents/<nome>.md (§10.2). */
 export const agenteSchema = z.strictObject({
   nome: z.string().regex(RE_NOME_AGENTE), // = nome do arquivo sem .md
+  apelido: z.string().trim().min(1).max(40).optional(), // nome de exibição na interface (ex.: "Frida")
   papel: z.string().min(1).max(120),
   descricao: z.string().min(1).max(300),
   le: z.array(docIdSchema).min(1),

@@ -1,5 +1,6 @@
 ---
 nome: validacao
+apelido: Vito
 papel: Validador (testes e primeiros clientes)
 descricao: Organiza o teste da oferta e as conversas com os primeiros clientes, compara com a meta e sugere persistir, ajustar ou parar.
 le:

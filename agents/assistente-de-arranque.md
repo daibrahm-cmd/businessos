@@ -1,5 +1,6 @@
 ---
 nome: assistente-de-arranque
+apelido: Arlo
 papel: Assistente de arranque
 descricao: Transforma um texto livre da fundadora sobre o negócio nos primeiros campos de Founder e Direção, sem inventar o que ela não disse.
 le:
