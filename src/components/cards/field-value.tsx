@@ -14,7 +14,7 @@ export interface FieldValueProps {
 }
 
 /** Texto formatado de um valor não vazio. */
-function textoDoValor(campo: FieldDef, valor: ValorCampo): string {
+export function textoDoValor(campo: FieldDef, valor: ValorCampo): string {
   switch (campo.tipo) {
     case "moeda":
       return typeof valor === "number" ? formatarMoeda(valor) : String(valor)

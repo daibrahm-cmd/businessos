@@ -52,3 +52,16 @@ export function autorLegivel(autor: string): string {
   if (autor === "humano") return "você"
   return autor.startsWith("agente:") ? `agente ${autor.slice("agente:".length)}` : autor
 }
+
+const DATA_EXTENSA = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+})
+
+/** "2026-11-08T14:32:10.000Z" → "8 de nov. de 2026" (fuso de São Paulo). */
+export function formatarDataExtensa(iso: string): string {
+  const data = new Date(iso)
+  return Number.isNaN(data.getTime()) ? iso : DATA_EXTENSA.format(data)
+}

@@ -1,6 +1,6 @@
 import type { Preview } from "@storybook/nextjs-vite"
 import { withThemeByClassName } from "@storybook/addon-themes"
-import { Inter } from "next/font/google"
+import { Cormorant_Garamond, IBM_Plex_Mono } from "next/font/google"
 
 import { TooltipProvider } from "../src/components/ui/tooltip"
 import { Toaster } from "../src/components/ui/sonner"
@@ -8,16 +8,24 @@ import { Toaster } from "../src/components/ui/sonner"
 // Mesmos estilos globais do app (Tailwind v4 + tokens do shadcn)
 import "../src/app/globals.css"
 
-// Mesma fonte do root layout, exposta como --font-inter (consumida por --font-sans no globals.css)
-const inter = Inter({
-  variable: "--font-inter",
+// Mesma fonte do root layout, exposta como --font-plex (consumida por --font-sans no globals.css)
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 })
 
-// Aplica a variável da fonte no <html> para que portais (dialog, sheet, tooltip) também herdem a Inter
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
+})
+
+// Aplica a variável da fonte no <html> para que portais (dialog, sheet, tooltip) também herdem a fonte
 if (typeof document !== "undefined") {
-  document.documentElement.classList.add(inter.variable, "font-sans", "antialiased")
+  document.documentElement.classList.add(plexMono.variable, cormorant.variable, "font-sans", "antialiased")
   document.documentElement.lang = "pt-BR"
 }
 

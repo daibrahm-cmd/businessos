@@ -46,3 +46,7 @@ storybook-static
 
 # estado local de plugins do Claude Code
 .omc/
+
+# dados pessoais da fundadora (repositório público): conteúdo e briefing ficam só locais
+content/**/*.md
+briefing/

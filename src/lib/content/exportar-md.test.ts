@@ -20,7 +20,7 @@ describe("exportarMarkdown", () => {
 
   it("cabeçalho, seções só quando têm documentos e \\n final", () => {
     const md = exportarMarkdown([perfil()], {}, GERADO_EM);
-    expect(md.startsWith("# BusinessOS — contexto do negócio\n\n> Estágio: Para quem está começando · Gerado em 2026-11-08T18:10:00.000Z · 1 documento\n\n## DIREÇÃO\n\n")).toBe(true);
+    expect(md.startsWith("# BusinessOS — contexto do negócio\n\n> Estágio: Sistema de marca viva · Gerado em 2026-11-08T18:10:00.000Z · 1 documento\n\n## DIREÇÃO\n\n")).toBe(true);
     expect(md).not.toContain("## FOUNDER");
     expect(md.endsWith("\n")).toBe(true);
     expect(md.endsWith("\n\n")).toBe(false);

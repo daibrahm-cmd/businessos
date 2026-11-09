@@ -74,10 +74,10 @@ curl -s -H "Authorization: Bearer $BUSINESSOS_API_TOKEN" "http://127.0.0.1:3000/
 curl -X PUT http://127.0.0.1:3000/api/context/direcao/tese-de-valor \
   -H "Content-Type: application/json" \
   -d '{
-    "atualizado_por": "agente:estrategista",
+    "atualizado_por": "agente:tese-de-valor",
     "esperado_atualizado_em": "2026-11-08T14:32:10.000Z",
     "campos": { "resultado_prometido": "Saber o lucro do mês em 5 minutos" },
-    "corpo_anexar": "## Sugestão do estrategista (08/11)\n- Testar a promessa ligada ao DAS."
+    "corpo_anexar": "## Sugestão do tese-de-valor (08/11)\n- Testar a promessa ligada ao DAS."
   }'
 ```
 
@@ -98,7 +98,7 @@ Exemplo criando um item (cliente) em `validacao/primeiros-clientes`:
 curl -X PUT http://127.0.0.1:3000/api/context/validacao/primeiros-clientes \
   -H "Content-Type: application/json" \
   -d '{
-    "atualizado_por": "agente:estrategista",
+    "atualizado_por": "agente:tese-de-valor",
     "itens": [{ "colecao": "clientes", "nome": "Ana Souza", "status": "prospect" }]
   }'
 ```
@@ -118,6 +118,23 @@ curl -X PUT http://127.0.0.1:3000/api/context/validacao/primeiros-clientes \
 6. Status: no máximo leve de `vazio` para `rascunho`; `em-validacao` e `validado` são decisão humana.
 7. Escreva em português do Brasil; valores monetários em reais como número (`197.5`), datas `YYYY-MM-DD`.
 
+## Workflow (o que você está fazendo)
+
+A página `/workflow` mostra um Kanban com o que cada agente está fazendo. Registre sua tarefa ao começar e mova de coluna ao terminar (`fila` → `trabalhando` → `revisao` → `concluida`):
+
+```bash
+# Começar (sem id = cria; a resposta traz o id)
+curl -X POST http://127.0.0.1:3000/api/workflow -H "Content-Type: application/json" \
+  -d '{"agente":"perfil-de-cliente-ideal","titulo":"Descrever o cliente ideal","status":"trabalhando","docs":["direcao/perfil-de-cliente-ideal"]}'
+
+# Atualizar (com id)
+curl -X POST http://127.0.0.1:3000/api/workflow -H "Content-Type: application/json" \
+  -d '{"id":"<id>","agente":"perfil-de-cliente-ideal","status":"revisao","nota":"Falta confirmar a faixa de preço"}'
+```
+
+- `agente` é o nome em `agents/<nome>.md`. `GET /api/workflow` lista tarefas e agentes. Mesmo token e mesmos códigos de erro da API de contexto.
+- As tarefas ficam em `workflow/tarefas.json` (ou `BUSINESSOS_WORKFLOW_FILE`). Um agente só move as próprias tarefas.
+
 ## Agentes e skills
 
 - `agents/<nome>.md`: front matter (`nome`, `papel`, `descricao`, `le`, `escreve`, `skills`) + instruções em português. Formato validado por `npm run content:validate` (spec §10.2).
@@ -125,8 +142,18 @@ curl -X PUT http://127.0.0.1:3000/api/context/validacao/primeiros-clientes \
 
 | Agente | Papel | Lê | Escreve |
 |---|---|---|---|
-| `estrategista` ([agents/estrategista.md](agents/estrategista.md)) | Estrategista de posicionamento | `founder/objetivo`, `direcao/mapa-de-mercado`, `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor` | `direcao/tese-de-valor` |
-| `analista-de-caixa` ([agents/analista-de-caixa.md](agents/analista-de-caixa.md)) | Analista de caixa | `founder/estilo-de-vida`, `validacao/fluxo-de-caixa`, `caixa/fluxo-de-caixa`, `caixa/erp` | `validacao/fluxo-de-caixa`, `caixa/fluxo-de-caixa` |
+| `tese-de-valor` ([agents/tese-de-valor.md](agents/tese-de-valor.md)) | Estrategista de posicionamento | `founder/objetivo`, `direcao/mapa-de-mercado`, `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor` | `direcao/tese-de-valor` |
+| `fluxo-de-caixa` ([agents/fluxo-de-caixa.md](agents/fluxo-de-caixa.md)) | Analista de caixa | `founder/estilo-de-vida`, `validacao/fluxo-de-caixa`, `caixa/fluxo-de-caixa`, `caixa/erp` | `validacao/fluxo-de-caixa`, `caixa/fluxo-de-caixa` |
+| `resumo` ([agents/resumo.md](agents/resumo.md)) | Resumo do negócio: visão geral, contradições e próxima ação | as 12 páginas | nenhuma (só lê) |
+| `founder` ([agents/founder.md](agents/founder.md)) | Mentora da fundadora | `founder/objetivo`, `founder/estilo-de-vida`, `caixa/fluxo-de-caixa` | `founder/objetivo`, `founder/estilo-de-vida` |
+| `mapa-de-mercado` ([agents/mapa-de-mercado.md](agents/mapa-de-mercado.md)) | Mapeador de mercado | `founder/objetivo`, `founder/estilo-de-vida`, `direcao/mapa-de-mercado` | `direcao/mapa-de-mercado` |
+| `ima-de-problemas` ([agents/ima-de-problemas.md](agents/ima-de-problemas.md)) | Caçador de problemas | `founder/objetivo`, `direcao/mapa-de-mercado`, `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal` | `direcao/ima-de-problemas` |
+| `perfil-de-cliente-ideal` ([agents/perfil-de-cliente-ideal.md](agents/perfil-de-cliente-ideal.md)) | Especialista em cliente ideal | `founder/objetivo`, `direcao/mapa-de-mercado`, `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal` | `direcao/perfil-de-cliente-ideal` |
+| `oferta` ([agents/oferta.md](agents/oferta.md)) | Desenhista de oferta | `founder/objetivo`, `founder/estilo-de-vida`, `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor`, `direcao/oferta`, `validacao/oferta`, `validacao/fluxo-de-caixa` | `direcao/oferta` |
+| `validacao` ([agents/validacao.md](agents/validacao.md)) | Validador (testes e primeiros clientes) | `direcao/tese-de-valor`, `direcao/oferta`, `validacao/oferta`, `validacao/primeiros-clientes`, `validacao/fluxo-de-caixa`, `founder/objetivo` | `validacao/oferta`, `validacao/primeiros-clientes` |
+| `erp` ([agents/erp.md](agents/erp.md)) | Operações e ERP | `caixa/erp`, `caixa/fluxo-de-caixa`, `founder/estilo-de-vida`, `direcao/oferta` | `caixa/erp` |
+| `revisor-de-contexto` ([agents/revisor-de-contexto.md](agents/revisor-de-contexto.md)) | Revisor de qualidade e coerência do contexto | as 12 páginas | nenhuma (só lê) |
+| `assistente-de-arranque` ([agents/assistente-de-arranque.md](agents/assistente-de-arranque.md)) | Distribui um texto livre nos primeiros campos | `founder/*` e `direcao/*` (7 páginas) | as mesmas 7 páginas |
 
 | Skill | Para que serve |
 |---|---|

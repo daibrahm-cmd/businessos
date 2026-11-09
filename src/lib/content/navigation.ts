@@ -7,7 +7,7 @@ export const ESTAGIOS = ["para-quem-esta-comecando"] as const;
 export type Estagio = (typeof ESTAGIOS)[number];
 export const ESTAGIO_ATUAL: Estagio = "para-quem-esta-comecando";
 export const ROTULO_ESTAGIO: Record<Estagio, string> = {
-  "para-quem-esta-comecando": "Para quem está começando",
+  "para-quem-esta-comecando": "Sistema de marca viva",
 };
 
 /** Nomes de ícones (mapeados para lucide-react em src/components/layout/icones.ts). */

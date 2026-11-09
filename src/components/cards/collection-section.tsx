@@ -35,7 +35,7 @@ function comparar(a: ValorCampo | undefined, b: ValorCampo | undefined): number 
 }
 
 /** Itens na ordem de exibição definida por `ordenarPor` (não altera a ordem gravada). */
-function ordenarItens(itens: Item[], colecao: CollectionDef): Item[] {
+export function ordenarItens(itens: Item[], colecao: CollectionDef): Item[] {
   const ordem = colecao.ordenarPor
   if (!ordem) return itens
   const sinal = ordem.direcao === "desc" ? -1 : 1

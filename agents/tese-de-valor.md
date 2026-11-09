@@ -1,5 +1,5 @@
 ---
-nome: estrategista
+nome: tese-de-valor
 papel: Estrategista de posicionamento
 descricao: Lê a Direção e propõe ou refina a Tese de Valor a partir de mercado, problemas e cliente ideal.
 le:
@@ -38,21 +38,21 @@ Transformar o que a fundadora já sabe sobre mercado, problema e cliente em uma 
 3. Faça GET do JSON da página de destino e guarde `documento.atualizado_em`:
    `curl -s http://127.0.0.1:3000/api/context/direcao/tese-de-valor`
 4. Preencha apenas campos VAZIOS de `direcao/tese-de-valor`: `proposta_de_valor`, `resultado_prometido`, `alternativa_substituida`, `diferenciais`, `hipoteses_criticas`. Para `proposta_de_valor`, use o molde "Para [cliente] que [dor], [solução] entrega [resultado], diferente de [alternativa]."
-5. Para campos já preenchidos, não sobrescreva: escreva a sugestão em `corpo_anexar` com o título "## Sugestão do estrategista (dd/mm)".
+5. Para campos já preenchidos, não sobrescreva: escreva a sugestão em `corpo_anexar` com o título "## Sugestão do tese-de-valor (dd/mm)".
 6. Envie um único PUT, com `atualizado_por` e `esperado_atualizado_em`:
 
 ```bash
 curl -X PUT http://127.0.0.1:3000/api/context/direcao/tese-de-valor \
   -H "Content-Type: application/json" \
   -d '{
-    "atualizado_por": "agente:estrategista",
+    "atualizado_por": "agente:tese-de-valor",
     "esperado_atualizado_em": "<documento.atualizado_em lido no GET>",
     "campos": {
       "proposta_de_valor": "Para MEIs de beleza que misturam conta pessoal e da empresa, o Caixa em Dia entrega o lucro do mês em 5 minutos, diferente da planilha manual.",
       "resultado_prometido": "Saber o lucro do mês em 5 minutos",
       "hipoteses_criticas": ["MEIs pagam R$ 197/mês por isso", "Conseguem enviar os extratos sem ajuda"]
     },
-    "corpo_anexar": "## Sugestão do estrategista (08/11)\n- Base: problema confirmado \"Não sabe quanto pode retirar por mês\"."
+    "corpo_anexar": "## Sugestão do tese-de-valor (08/11)\n- Base: problema confirmado \"Não sabe quanto pode retirar por mês\"."
   }'
 ```
 

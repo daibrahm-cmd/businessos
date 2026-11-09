@@ -10,6 +10,10 @@ export default definirPagina("direcao/mapa-de-mercado", {
     { nome: "mercado", rotulo: "Mercado", tipo: "texto-curto", grupo: "Recorte do mercado",
       placeholder: "Ex.: organização financeira para MEIs prestadores de serviço" },
     { nome: "regiao", rotulo: "Região de atuação", tipo: "texto-curto", grupo: "Recorte do mercado", placeholder: "Ex.: Brasil, online" },
+    // Porte das empresas-alvo: separa a faixa principal da secundária para não misturar recortes.
+    { nome: "porte_alvo", rotulo: "Porte das empresas-alvo", tipo: "texto-curto", grupo: "Recorte do mercado",
+      ajuda: "Faixa de funcionários (ou faturamento) das empresas que você quer atender, separando principal e secundária.",
+      placeholder: "Ex.: principal: 100 a 500 funcionários; secundária: 30 a 99" },
     { nome: "por_que_este_mercado", rotulo: "Por que este mercado", tipo: "texto-longo", grupo: "Recorte do mercado",
       ajuda: "O que te conecta a ele: experiência, rede de contatos, acesso, interesse." },
     { nome: "conhecimento_do_mercado", rotulo: "O quanto você conhece este mercado", tipo: "selecao", grupo: "Recorte do mercado",

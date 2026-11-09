@@ -66,6 +66,12 @@ export interface PageEditorProps {
   /** Resumos já calculados no servidor, por nome de coleção. */
   resumos: Record<string, ResumoCalculado[]>
   onSalvar: (patch: DocPatch, esperadoAtualizadoEm?: string) => Promise<ResultadoAcao>
+  /** Dentro de um modal: sem título da página nem margens próprias (o modal já traz o título). */
+  emModal?: boolean
+  /** Avisa quando passa a existir (ou deixa de existir) alteração não salva. */
+  onPendenteChange?: (pendente: boolean) => void
+  /** Chamado depois de um salvamento bem-sucedido (o relatório usa para fechar o modal). */
+  onSalvo?: () => void
 }
 
 /** Parte editável do documento. */
@@ -147,7 +153,7 @@ function calcularDiferencas(base: ContentDoc, rascunho: Rascunho, definicao: Pag
 const MENSAGEM_SAIR = "Você tem alterações não salvas. Sair mesmo assim?"
 
 /** Agrupa campos consecutivos pelo `grupo` (sem grupo → "Campos"), preservando a ordem. */
-function gruposDeCampos(campos: readonly FieldDef[]) {
+export function gruposDeCampos(campos: readonly FieldDef[]) {
   const grupos: Array<{ titulo: string; campos: FieldDef[] }> = []
   for (const campo of campos) {
     const titulo = campo.grupo ?? "Campos"
@@ -158,7 +164,15 @@ function gruposDeCampos(campos: readonly FieldDef[]) {
   return grupos
 }
 
-export function PageEditor({ documento, definicao, resumos, onSalvar }: PageEditorProps) {
+export function PageEditor({
+  documento,
+  definicao,
+  resumos,
+  onSalvar,
+  emModal = false,
+  onPendenteChange,
+  onSalvo,
+}: PageEditorProps) {
   const [base, setBase] = React.useState(documento)
   const [rascunho, setRascunho] = React.useState(() => rascunhoDe(documento))
   const [errosCampos, setErrosCampos] = React.useState<Record<string, string>>({})
@@ -171,6 +185,11 @@ export function PageEditor({ documento, definicao, resumos, onSalvar }: PageEdit
     [base, rascunho, definicao],
   )
   const temAlteracoes = quantidade > 0
+
+  // Avisa quem hospeda o editor (modal) sobre pendências
+  React.useEffect(() => {
+    onPendenteChange?.(temAlteracoes)
+  }, [temAlteracoes, onPendenteChange])
 
   // As props trouxeram outra versão (o servidor revalidou): adota se não houver pendências.
   // versaoVista acompanha só as props (ajuste durante o render, sem efeito).
@@ -255,6 +274,7 @@ export function PageEditor({ documento, definicao, resumos, onSalvar }: PageEdit
         // Só troca o rascunho se a pessoa não editou nada enquanto salvava
         if (rascunhoRef.current === rascunhoEnviado) setRascunho(rascunhoDe(resultado.documento))
         toast.success("Alterações salvas.")
+        onSalvo?.()
         return
       }
 
@@ -331,14 +351,18 @@ export function PageEditor({ documento, definicao, resumos, onSalvar }: PageEdit
   // ---------- Render ----------
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-8 md:py-8">
+    <div className={emModal ? "space-y-8" : "mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-8 md:py-8"}>
       {/* 1. Cabeçalho */}
       <header className="space-y-3">
-        <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">{secao.titulo}</p>
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight break-words md:text-3xl">{documento.titulo}</h1>
-          <p className="text-sm text-muted-foreground">{documento.descricao}</p>
-        </div>
+        {!emModal && (
+          <>
+            <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">{secao.titulo}</p>
+            <div className="space-y-1">
+              <h1 className="text-2xl font-semibold tracking-tight break-words md:text-3xl">{documento.titulo}</h1>
+              <p className="text-sm text-muted-foreground">{documento.descricao}</p>
+            </div>
+          </>
+        )}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
           <StatusSelect
             value={rascunho.status}

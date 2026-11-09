@@ -2,6 +2,7 @@
 import type { Metadata } from "next"
 
 import { AppHeader } from "@/components/layout/app-header"
+import { CabecalhoPagina } from "@/components/relatorio/cabecalho-pagina"
 import { completudeGeral, lerBriefing } from "@/lib/briefing/briefing"
 import { formatarDataHora } from "@/lib/format"
 
@@ -16,14 +17,12 @@ export default async function BriefingPage() {
   return (
     <>
       <AppHeader trilha={[{ rotulo: "Briefing" }]} />
-      <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 md:px-8 md:py-8">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Briefing</h1>
-          <p className="text-sm text-muted-foreground">
-            O Claude lê as respostas de todas as páginas e monta um briefing: resumo, a conta que fecha (ou não),
-            contradições, o que falta responder e os próximos passos.
-          </p>
-        </div>
+      <div className="mx-auto w-full max-w-3xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+        <CabecalhoPagina
+          eyebrow="Análise do Claude"
+          titulo="Briefing"
+          descricao="O Claude lê as respostas de todas as páginas e monta um briefing: resumo, a conta que fecha (ou não), contradições, o que falta responder e os próximos passos."
+        />
 
         <div className="flex flex-wrap items-center gap-3">
           <BotaoGerar temBriefing={!!briefing} />

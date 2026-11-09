@@ -82,7 +82,7 @@ flowchart LR
 
 **Escrita pela UI:** a fundadora edita campos/itens/notas/status no rascunho local → `SaveBar` → `salvarDocumento(id, patch, esperadoAtualizadoEm)` (Server Action) → serviço → `revalidatePath` → RSC re-renderiza com o documento salvo.
 
-**Escrita por agente:** `PUT /api/context/direcao/tese-de-valor` com JSON parcial + `atualizado_por: "agente:estrategista"` → guarda de acesso → validação do corpo → serviço (merge: o que não foi enviado é preservado) → `200 { documento }`.
+**Escrita por agente:** `PUT /api/context/direcao/tese-de-valor` com JSON parcial + `atualizado_por: "agente:tese-de-valor"` → guarda de acesso → validação do corpo → serviço (merge: o que não foi enviado é preservado) → `200 { documento }`.
 
 ---
 
@@ -122,8 +122,8 @@ BusinessOS/
 │   ├── caixa/fluxo-de-caixa.md
 │   └── caixa/erp.md
 ├── agents/
-│   ├── estrategista.md                         2C
-│   └── analista-de-caixa.md                    2C
+│   ├── tese-de-valor.md                         2C
+│   └── fluxo-de-caixa.md                   2C
 ├── skills/
 │   └── contexto-businessos/SKILL.md            2C
 ├── scripts/
@@ -1117,7 +1117,7 @@ descricao: Os primeiros clientes e conversas de venda como evidência de valida�
 estagio: para-quem-esta-comecando
 status: em-validacao
 atualizado_em: '2026-11-08T18:05:44.120Z'
-atualizado_por: agente:estrategista
+atualizado_por: agente:tese-de-valor
 tags: []
 relacionados:
   - direcao/perfil-de-cliente-ideal
@@ -1199,7 +1199,7 @@ export const ESTAGIOS = ["para-quem-esta-comecando"] as const;
 export type Estagio = (typeof ESTAGIOS)[number];
 export const ESTAGIO_ATUAL: Estagio = "para-quem-esta-comecando";
 export const ROTULO_ESTAGIO: Record<Estagio, string> = {
-  "para-quem-esta-comecando": "Para quem está começando",
+  "para-quem-esta-comecando": "Sistema de marca viva",
 };
 
 /** Nomes de ícones (mapeados para lucide-react em src/components/layout/icones.ts). */
@@ -1659,7 +1659,7 @@ Resposta 200 `?format=md` (`Content-Type: text/markdown; charset=utf-8`) — ger
 ```markdown
 # BusinessOS — contexto do negócio
 
-> Estágio: Para quem está começando · Gerado em 2026-11-08T18:10:00.000Z · 12 documentos
+> Estágio: Sistema de marca viva · Gerado em 2026-11-08T18:10:00.000Z · 12 documentos
 
 ## FOUNDER
 
@@ -1750,9 +1750,9 @@ Exemplo:
 curl -X PUT http://localhost:3000/api/context/direcao/tese-de-valor \
   -H "Content-Type: application/json" \
   -d '{
-    "atualizado_por": "agente:estrategista",
+    "atualizado_por": "agente:tese-de-valor",
     "campos": { "resultado_prometido": "Saber o lucro do mês em 5 minutos" },
-    "corpo_anexar": "## Sugestão do estrategista (08/11)\n- Testar a promessa ligada ao DAS."
+    "corpo_anexar": "## Sugestão do tese-de-valor (08/11)\n- Testar a promessa ligada ao DAS."
   }'
 ```
 
@@ -2145,11 +2145,11 @@ export const agenteSchema = z.strictObject({
 
 Corpo: instruções do agente em PT-BR (missão, quando usar, passo a passo, formato de saída, o que não fazer).
 
-**Exemplo 1 — `agents/estrategista.md`:**
+**Exemplo 1 — `agents/tese-de-valor.md`:**
 
 ```markdown
 ---
-nome: estrategista
+nome: tese-de-valor
 papel: Estrategista de posicionamento
 descricao: Lê a Direção e propõe ou refina a Tese de Valor a partir de mercado, problemas e cliente ideal.
 le:
@@ -2175,19 +2175,19 @@ Transformar o que a fundadora já sabe sobre mercado, problema e cliente em uma 
 3. Preencha apenas campos VAZIOS de direcao/tese-de-valor: proposta_de_valor, resultado_prometido,
    alternativa_substituida, diferenciais, hipoteses_criticas.
 4. Para campos já preenchidos, não sobrescreva: escreva a sugestão em corpo_anexar com o título
-   "## Sugestão do estrategista (dd/mm)".
-5. Envie um único PUT com atualizado_por: "agente:estrategista" e esperado_atualizado_em.
+   "## Sugestão do tese-de-valor (dd/mm)".
+5. Envie um único PUT com atualizado_por: "agente:tese-de-valor" e esperado_atualizado_em.
 
 ## Não faça
 - Não altere nivel_de_confianca nem status além de "rascunho".
 - Não invente dados de mercado; quando faltar evidência, liste em hipoteses_criticas.
 ```
 
-**Exemplo 2 — `agents/analista-de-caixa.md`:**
+**Exemplo 2 — `agents/fluxo-de-caixa.md`:**
 
 ```markdown
 ---
-nome: analista-de-caixa
+nome: fluxo-de-caixa
 papel: Analista de caixa
 descricao: Lê os fluxos de caixa e o estilo de vida e aponta fôlego, riscos e próximos passos financeiros.
 le:
@@ -2211,7 +2211,7 @@ Dizer, em linguagem simples, quanto fôlego o negócio tem e o que fazer com o c
 1. Leia os documentos de `le`.
 2. Calcule: saldo do teste (entradas − saídas), gasto vs. orcamento_do_teste, distância até limite_de_perda;
    na operação, saldo realizado vs. reserva_minima e custo_fixo_mensal.
-3. Escreva o diagnóstico com corpo_anexar ("## Análise do analista-de-caixa (dd/mm)"): 3 números, 3 riscos, 3 ações.
+3. Escreva o diagnóstico com corpo_anexar ("## Análise do fluxo de caixa (dd/mm)"): 3 números, 3 riscos, 3 ações.
 4. Só crie lançamentos se a fundadora tiver informado os valores na conversa; nunca edite ou remova lançamentos existentes.
 
 ## Não faça
@@ -2477,7 +2477,7 @@ Depois do 2.0, em paralelo:
 |---|---|---|---|
 | **2A Camada de conteúdo** | `src/lib/content/schemas/{build,definir-pagina,index}.ts`, `schemas/paginas/*.ts` (12), `serializacao.ts`, `merge.ts`, `completude.ts`, `resumos.ts`, `exportar-md.ts`, `agentes.ts`, `repository.ts`, `fs-repository.ts`, `servico.ts`, `src/lib/format.ts`, `scripts/*.ts`, `vitest.config.ts`, `content/**` (via seed), testes correspondentes; deps `gray-matter zod tsx vitest`; scripts `test*`, `typecheck`, `content:*` | 2.0 | testes da §12.2 (camada) verdes; `content:seed` gera 12 arquivos; `content:validate` ok |
 | **2B UI shell e componentes** | `src/app/globals.css`, `src/app/layout.tsx`, `src/components/theme-provider.tsx`, `src/components/layout/**`, `src/components/cards/**`, `src/components/editor/**`, `src/components/__fixtures__/**`, `src/hooks/use-modo-visualizacao.ts`, `src/lib/markdown/render-simples.tsx`, `.storybook/preview.tsx`, componentes shadcn da §8.5, todas as stories | 2.0 (usa só tipos/navegação; para `criarSchemaItemCompleto`, `calcularCompletude` e `format.ts` usa a versão da 2A quando pronta — até lá, as stories recebem dados prontos das fixtures) | `build-storybook` ok; stories da §8.1 nos dois temas; sem import de actions/servico em `src/components` |
-| **2C Agentes e skills** | `AGENTS.md`, `agents/estrategista.md`, `agents/analista-de-caixa.md`, `skills/contexto-businessos/SKILL.md` | spec | arquivos conforme §10; validam no `content:validate` quando 2A terminar |
+| **2C Agentes e skills** | `AGENTS.md`, `agents/tese-de-valor.md`, `agents/fluxo-de-caixa.md`, `skills/contexto-businessos/SKILL.md` | spec | arquivos conforme §10; validam no `content:validate` quando 2A terminar |
 
 Ponto de atenção 2A↔2B: `field-input.tsx`/`item-form.tsx` importam `criarSchemaItemCompleto` e `parsearNumeroBR`. Se a 2B chegar lá antes da 2A, implementar contra as assinaturas da §3.4/§3.9 (o typecheck fecha quando a 2A entregar). Nenhum dos dois cria o arquivo do outro.
 

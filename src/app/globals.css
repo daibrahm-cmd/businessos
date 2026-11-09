@@ -8,10 +8,12 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* Inter (next/font expõe --font-inter no <html>) com fallback de sistema */
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* IBM Plex Mono em tudo (identidade DB); next/font expõe --font-plex no <html> */
+  --font-sans: var(--font-plex), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: var(--font-plex), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Cormorant Garamond: títulos de página (classe font-display) */
+  --font-display: var(--font-cormorant), Georgia, serif;
+  --font-heading: var(--font-plex), ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,75 +52,82 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Tema claro — paleta neutral (croma 0); a única cor é --destructive (erros e ações destrutivas) */
+/*
+ * Identidade visual DB (Figma "DB — Identidade Visual").
+ * Paleta oficial: Carvão #373634 · Grisalho #B0C2C2 · Marinho #3F495A · Verde #E4FE65 · Branco Lunar #EFEFEF.
+ * Os tons marcados "derivado" são misturas da paleta para superfícies e bordas (não existem no Figma).
+ * O Verde só aparece no tema escuro; no claro, o destaque é Carvão.
+ */
+
+/* Tema claro: Branco Lunar + Carvão */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #efefef; /* Branco Lunar */
+  --foreground: #373634; /* Carvão */
+  --card: #f7f7f7; /* derivado */
+  --card-foreground: #373634;
+  --popover: #f7f7f7; /* derivado */
+  --popover-foreground: #373634;
+  --primary: #373634; /* Carvão */
+  --primary-foreground: #efefef;
+  --secondary: #e2e6e6; /* derivado: Grisalho clareado */
+  --secondary-foreground: #373634;
+  --muted: #e2e6e6; /* derivado */
+  --muted-foreground: #3f495a; /* Marinho */
+  --accent: #d6dede; /* derivado: Grisalho clareado */
+  --accent-foreground: #373634;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --border: #c5d1d1; /* derivado: Grisalho clareado */
+  --input: #c5d1d1;
+  --ring: #3f495a; /* Marinho */
+  --chart-1: #b0c2c2; /* Grisalho */
+  --chart-2: #3f495a; /* Marinho */
+  --chart-3: #373634; /* Carvão */
+  --chart-4: #7d8a8a; /* derivado */
+  --chart-5: #5c6678; /* derivado */
   --radius: 0.75rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #e6e9e9; /* derivado */
+  --sidebar-foreground: #373634;
+  --sidebar-primary: #373634;
+  --sidebar-primary-foreground: #efefef;
+  --sidebar-accent: #d6dede; /* derivado */
+  --sidebar-accent-foreground: #373634;
+  --sidebar-border: #c5d1d1;
+  --sidebar-ring: #3f495a;
 }
 
-/* Tema escuro (padrão, aplicado por next-themes via classe .dark no <html>) */
+/* Tema escuro (padrão, aplicado por next-themes via classe .dark no <html>): Carvão + Verde */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #373634; /* Carvão */
+  --foreground: #efefef; /* Branco Lunar */
+  --card: #403f3d; /* derivado */
+  --card-foreground: #efefef;
+  --popover: #403f3d; /* derivado */
+  --popover-foreground: #efefef;
+  --primary: #e4fe65; /* Verde */
+  --primary-foreground: #373634;
+  --secondary: #46453f; /* derivado */
+  --secondary-foreground: #efefef;
+  --muted: #46453f; /* derivado */
+  --muted-foreground: #b0c2c2; /* Grisalho */
+  --accent: #3f495a; /* Marinho */
+  --accent-foreground: #efefef;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.922 0 0); /* neutro, sem azul */
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: rgb(176 194 194 / 20%); /* Grisalho translúcido */
+  --input: rgb(176 194 194 / 28%);
+  --ring: #e4fe65; /* Verde */
+  --chart-1: #e4fe65; /* Verde */
+  --chart-2: #b0c2c2; /* Grisalho */
+  --chart-3: #7d8a8a; /* derivado */
+  --chart-4: #3f495a; /* Marinho */
+  --chart-5: #efefef; /* Branco Lunar */
+  --sidebar: #2e2d2c; /* derivado: Carvão escurecido */
+  --sidebar-foreground: #efefef;
+  --sidebar-primary: #e4fe65; /* Verde */
+  --sidebar-primary-foreground: #373634;
+  --sidebar-accent: #3f495a; /* Marinho */
+  --sidebar-accent-foreground: #efefef;
+  --sidebar-border: rgb(176 194 194 / 20%);
+  --sidebar-ring: #e4fe65;
 }
 
 @layer base {

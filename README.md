@@ -59,7 +59,7 @@ Os componentes de layout, cards e editor têm stories em `src/components/**/*.st
 
 ## Como agentes usam o contexto
 
-O guia completo está em [AGENTS.md](./AGENTS.md): mapa de documentos, como ler, como escrever, regras e códigos de erro. Os agentes prontos ficam em [`agents/`](./agents) (estrategista e analista de caixa) e a skill de acesso em [`skills/contexto-businessos/SKILL.md`](./skills/contexto-businessos/SKILL.md).
+O guia completo está em [AGENTS.md](./AGENTS.md): mapa de documentos, como ler, como escrever, regras e códigos de erro. Os agentes prontos ficam em [`agents/`](./agents) (tese-de-valor e analista de caixa) e a skill de acesso em [`skills/contexto-businessos/SKILL.md`](./skills/contexto-businessos/SKILL.md).
 
 Ler todo o contexto em Markdown, pronto para um prompt:
 
@@ -79,10 +79,10 @@ Escrever (merge parcial: o que não for enviado fica como está):
 curl -X PUT http://127.0.0.1:3000/api/context/direcao/tese-de-valor \
   -H "Content-Type: application/json" \
   -d '{
-    "atualizado_por": "agente:estrategista",
+    "atualizado_por": "agente:tese-de-valor",
     "esperado_atualizado_em": "<documento.atualizado_em lido no GET>",
     "campos": { "resultado_prometido": "Saber o lucro do mês em 5 minutos" },
-    "corpo_anexar": "## Sugestão do estrategista (08/11)\n- Testar a promessa ligada ao DAS."
+    "corpo_anexar": "## Sugestão do tese-de-valor (08/11)\n- Testar a promessa ligada ao DAS."
   }'
 ```
 

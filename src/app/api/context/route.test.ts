@@ -63,7 +63,7 @@ describe("GET /api/context", () => {
     expect(res.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
     expect(res.headers.get("cache-control")).toBe("no-store");
     const texto = await res.text();
-    expect(texto.startsWith("# BusinessOS — contexto do negócio\n\n> Estágio: Para quem está começando")).toBe(true);
+    expect(texto.startsWith("# BusinessOS — contexto do negócio\n\n> Estágio: Sistema de marca viva")).toBe(true);
     expect(texto).toContain("· 12 documentos");
     expect(texto).toContain("### Primeiros Clientes (`validacao/primeiros-clientes`)");
     expect(texto).toContain("**Ana Souza**");

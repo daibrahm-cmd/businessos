@@ -3,8 +3,9 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { CardCollection } from "@/components/cards/card-collection"
-import { PageCard } from "@/components/cards/page-card"
+import { CapaPaginaCard } from "@/components/cards/capa-pagina-card"
 import { AppHeader } from "@/components/layout/app-header"
+import { CabecalhoPagina } from "@/components/relatorio/cabecalho-pagina"
 import { ErroConteudo } from "@/lib/content/errors"
 import { ehSecaoValida, obterSecao } from "@/lib/content/navigation"
 import { listarDocumentos } from "@/lib/content/servico"
@@ -41,12 +42,12 @@ export default async function SecaoPage({ params }: PageProps<"/[secao]">) {
   return (
     <>
       <AppHeader trilha={[{ rotulo: "Início", href: "/" }, { rotulo: secao.nome }]} />
-      <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 md:px-8 md:py-8">
-        <div className="space-y-2">
-          <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">{secao.titulo}</p>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{secao.nome}</h1>
-          <p className="text-sm text-muted-foreground">{secao.descricao}</p>
-        </div>
+      <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 md:px-8 md:py-10">
+        <CabecalhoPagina
+          eyebrow={`${secao.titulo} · ${secao.paginas.length} páginas`}
+          titulo={secao.nome}
+          descricao={secao.descricao}
+        />
 
         {erroConteudo || !documentos ? (
           <PainelErroConteudo
@@ -57,17 +58,17 @@ export default async function SecaoPage({ params }: PageProps<"/[secao]">) {
         ) : (
           <CardCollection chavePreferencia={`secao:${slug}`}>
             {documentos.map((doc) => {
-              const resumo = resumirPagina(doc)
+              const r = resumirPagina(doc)
               return (
-                <PageCard
+                <CapaPaginaCard
                   key={doc.id}
-                  href={resumo.href}
-                  titulo={resumo.pagina.titulo}
-                  descricao={resumo.pagina.descricao}
-                  status={resumo.status}
-                  completude={resumo.completude}
-                  atualizadoEm={resumo.atualizadoEm}
-                  icone={resumo.pagina.icone}
+                  href={r.href}
+                  titulo={r.pagina.titulo}
+                  status={r.status}
+                  resumo={r.resumo}
+                  tags={r.tags}
+                  atualizadoEm={r.atualizadoEm}
+                  autor={r.autor}
                 />
               )
             })}

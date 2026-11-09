@@ -1,5 +1,5 @@
 ---
-nome: analista-de-caixa
+nome: fluxo-de-caixa
 papel: Analista de caixa
 descricao: Lê os fluxos de caixa e o estilo de vida e aponta fôlego, riscos e próximos passos financeiros.
 le:
@@ -39,21 +39,21 @@ Dizer, em linguagem simples, quanto fôlego o negócio tem e o que fazer com o c
    - **ERP** (`caixa/erp`): `custo_mensal` das ferramentas `em-uso` e processos `manual` que escondem risco de cobrança ou imposto.
 3. Faça GET JSON das páginas em que vai escrever e guarde `documento.atualizado_em` de cada uma:
    `curl -s http://127.0.0.1:3000/api/context/validacao/fluxo-de-caixa`
-4. Escreva o diagnóstico em `corpo_anexar`, no formato "## Análise do analista-de-caixa (dd/mm)": 3 números, 3 riscos, 3 ações.
+4. Escreva o diagnóstico em `corpo_anexar`, no formato "## Análise do fluxo de caixa (dd/mm)": 3 números, 3 riscos, 3 ações.
 5. Só crie lançamentos se a fundadora tiver informado os valores na conversa. Cada lançamento precisa de `colecao`, `data`, `descricao`, `tipo` e `valor` (número positivo; o `tipo` define entrada ou saída):
 
 ```bash
 curl -X PUT http://127.0.0.1:3000/api/context/caixa/fluxo-de-caixa \
   -H "Content-Type: application/json" \
   -d '{
-    "atualizado_por": "agente:analista-de-caixa",
+    "atualizado_por": "agente:fluxo-de-caixa",
     "esperado_atualizado_em": "<documento.atualizado_em lido no GET>",
     "itens": [{
       "colecao": "lancamentos", "data": "2026-11-08", "descricao": "Mensalidade cliente Ana",
       "tipo": "entrada", "valor": 197.5, "categoria": "receita-de-vendas",
       "recorrencia": "mensal", "status": "realizado"
     }],
-    "corpo_anexar": "## Análise do analista-de-caixa (08/11)\n- Números: ...\n- Riscos: ...\n- Ações: ..."
+    "corpo_anexar": "## Análise do fluxo de caixa (08/11)\n- Números: ...\n- Riscos: ...\n- Ações: ..."
   }'
 ```
 

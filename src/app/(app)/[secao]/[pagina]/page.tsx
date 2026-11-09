@@ -1,9 +1,9 @@
-// Página editável: lê o documento, pré-calcula os resumos das coleções e liga a Server Action ao editor.
+// Página do documento: relatório de leitura; a edição abre em um modal (Server Action ligada ao editor).
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 
-import { PageEditor } from "@/components/editor/page-editor"
 import { AppHeader } from "@/components/layout/app-header"
+import { PaginaRelatorio } from "@/components/relatorio/pagina-relatorio"
 import { salvarDocumento } from "@/lib/content/actions"
 import { calcularResumos } from "@/lib/content/resumos"
 import { ErroConteudo } from "@/lib/content/errors"
@@ -71,7 +71,7 @@ export default async function PaginaEditavel({ params }: PageProps<"/[secao]/[pa
   return (
     <>
       <AppHeader trilha={trilha} />
-      <PageEditor
+      <PaginaRelatorio
         documento={documento}
         definicao={definicao}
         resumos={resumos}

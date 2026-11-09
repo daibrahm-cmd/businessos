@@ -45,10 +45,9 @@ export function PageCard({ href, titulo, descricao, status, completude, atualiza
             </span>
           )}
           <div className="min-w-0 flex-1 space-y-1">
-            <div className="flex items-start justify-between gap-2">
-              <h3 className="text-sm font-medium">{titulo}</h3>
-              <StatusBadge status={status} />
-            </div>
+            {/* Selo acima do título: em cards estreitos ele não estoura a borda */}
+            <StatusBadge status={status} />
+            <h3 className="text-base leading-snug font-semibold break-words">{titulo}</h3>
             <p className="line-clamp-2 text-sm text-muted-foreground">{descricao}</p>
           </div>
         </div>

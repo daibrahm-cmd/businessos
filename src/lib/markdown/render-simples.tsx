@@ -78,7 +78,7 @@ const RE_INLINE =
   /`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*/g
 
 /** Converte a formatação inline em elementos React. */
-function renderizarInline(texto: string, chaveBase: string): React.ReactNode[] {
+export function renderizarInline(texto: string, chaveBase: string): React.ReactNode[] {
   const nos: React.ReactNode[] = []
   let ultimo = 0
   let indice = 0
