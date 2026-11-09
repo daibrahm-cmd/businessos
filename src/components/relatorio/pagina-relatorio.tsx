@@ -22,9 +22,19 @@ import { PageEditor, type PageEditorProps } from "@/components/editor/page-edito
 
 import { RelatorioPagina } from "./relatorio-pagina"
 
-export type PaginaRelatorioProps = Pick<PageEditorProps, "documento" | "definicao" | "resumos" | "onSalvar">
+export type PaginaRelatorioProps = Pick<
+  PageEditorProps,
+  "documento" | "definicao" | "resumos" | "onSalvar" | "onPedirIA" | "onGerarRelatorio"
+>
 
-export function PaginaRelatorio({ documento, definicao, resumos, onSalvar }: PaginaRelatorioProps) {
+export function PaginaRelatorio({
+  documento,
+  definicao,
+  resumos,
+  onSalvar,
+  onPedirIA,
+  onGerarRelatorio,
+}: PaginaRelatorioProps) {
   const [editando, setEditando] = React.useState(false)
   const [pendente, setPendente] = React.useState(false)
   const [confirmandoSaida, setConfirmandoSaida] = React.useState(false)
@@ -88,6 +98,8 @@ export function PaginaRelatorio({ documento, definicao, resumos, onSalvar }: Pag
               emModal
               onPendenteChange={setPendente}
               onSalvo={fechar}
+              onPedirIA={onPedirIA}
+              onGerarRelatorio={onGerarRelatorio}
             />
           </div>
         </DialogContent>

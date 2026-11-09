@@ -5,6 +5,7 @@ import { notFound } from "next/navigation"
 import { AppHeader } from "@/components/layout/app-header"
 import { PaginaRelatorio } from "@/components/relatorio/pagina-relatorio"
 import { salvarDocumento } from "@/lib/content/actions"
+import { gerarRelatorioAction, pedirIAAction } from "@/lib/ia/actions"
 import { calcularResumos } from "@/lib/content/resumos"
 import { ErroConteudo } from "@/lib/content/errors"
 import { hrefDaSecao, montarId, obterPagina, separarId } from "@/lib/content/navigation"
@@ -76,6 +77,8 @@ export default async function PaginaEditavel({ params }: PageProps<"/[secao]/[pa
         definicao={definicao}
         resumos={resumos}
         onSalvar={salvarDocumento.bind(null, id)}
+        onPedirIA={pedirIAAction.bind(null, id)}
+        onGerarRelatorio={gerarRelatorioAction.bind(null, id)}
       />
     </>
   )

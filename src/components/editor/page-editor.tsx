@@ -5,6 +5,7 @@
 // trata conflito com edição de agentes e avisa antes de sair com alterações pendentes.
 import * as React from "react"
 import Link from "next/link"
+import { BarChart3, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 
 import { CardCollection } from "@/components/cards/card-collection"
@@ -35,6 +36,7 @@ import {
 import { calcularCompletude } from "@/lib/content/completude"
 import type { CodigoErro } from "@/lib/content/errors"
 import { hrefDoDocumento, obterPagina } from "@/lib/content/navigation"
+import { valorVazio } from "@/lib/content/schemas/build"
 import type { FieldDef, PageDefinition } from "@/lib/content/schemas/field-types"
 import type { ContentDoc, DocPatch, Item, ResumoCalculado, Status, ValorCampo } from "@/lib/content/types"
 import { formatarDataHora } from "@/lib/format"
@@ -72,7 +74,15 @@ export interface PageEditorProps {
   onPendenteChange?: (pendente: boolean) => void
   /** Chamado depois de um salvamento bem-sucedido (o relatório usa para fechar o modal). */
   onSalvo?: () => void
+  /** "Pedir à IA": sugere valores para campos vazios. Sem esta callback o botão não aparece. */
+  onPedirIA?: () => Promise<ResultadoSugestaoIA>
+  /** "Gerar relatório": devolve texto para as notas. Sem esta callback o botão não aparece. */
+  onGerarRelatorio?: () => Promise<ResultadoRelatorioIA>
 }
+
+/** Resultados das Server Actions de IA (declarados aqui pelo mesmo motivo de ResultadoAcao). */
+export type ResultadoSugestaoIA = { ok: true; campos: Record<string, ValorCampo> } | { ok: false; mensagem: string }
+export type ResultadoRelatorioIA = { ok: true; texto: string } | { ok: false; mensagem: string }
 
 /** Parte editável do documento. */
 interface Rascunho {
@@ -172,6 +182,8 @@ export function PageEditor({
   emModal = false,
   onPendenteChange,
   onSalvo,
+  onPedirIA,
+  onGerarRelatorio,
 }: PageEditorProps) {
   const [base, setBase] = React.useState(documento)
   const [rascunho, setRascunho] = React.useState(() => rascunhoDe(documento))
@@ -179,6 +191,7 @@ export function PageEditor({
   const [conflito, setConflito] = React.useState<ContentDoc | null>(null)
   const [confirmandoDescarte, setConfirmandoDescarte] = React.useState(false)
   const [salvando, iniciarTransicao] = React.useTransition()
+  const [ia, setIa] = React.useState<"pedir" | "gerar" | null>(null)
 
   const { patch, quantidade, camposAlterados, pendentes } = React.useMemo(
     () => calcularDiferencas(base, rascunho, definicao),
@@ -224,6 +237,44 @@ export function PageEditor({
         delete resto[nome]
         return resto
       })
+    }
+  }
+
+  // ---------- IA: tudo cai no rascunho; nada é salvo até a pessoa clicar em Salvar ----------
+
+  const pedirIA = async () => {
+    if (!onPedirIA || ia) return
+    setIa("pedir")
+    try {
+      const r = await onPedirIA()
+      if (!r.ok) return void toast.error(r.mensagem)
+      // Só preenche o que continua vazio no rascunho (nunca sobrescreve o que a pessoa digitou)
+      const aplicados = Object.keys(r.campos).filter((n) => valorVazio(rascunhoRef.current.campos[n]))
+      if (aplicados.length === 0) return void toast.info("A IA não encontrou base no contexto para sugerir campos.")
+      setRascunho((atual) => ({
+        ...atual,
+        campos: {
+          ...atual.campos,
+          ...Object.fromEntries(aplicados.filter((n) => valorVazio(atual.campos[n])).map((n) => [n, r.campos[n]])),
+        },
+      }))
+      toast.success(`${aplicados.length} campo(s) sugerido(s). Revise e salve.`)
+    } finally {
+      setIa(null)
+    }
+  }
+
+  const gerarRelatorio = async () => {
+    if (!onGerarRelatorio || ia) return
+    setIa("gerar")
+    try {
+      const r = await onGerarRelatorio()
+      if (!r.ok) return void toast.error(r.mensagem)
+      // Acrescenta ao fim das notas, sem apagar o que já existe
+      setRascunho((atual) => ({ ...atual, corpo: atual.corpo.trim() ? `${atual.corpo.trimEnd()}\n\n${r.texto}` : r.texto }))
+      toast.success("Relatório adicionado às notas. Revise e salve.")
+    } finally {
+      setIa(null)
     }
   }
 
@@ -376,6 +427,36 @@ export function PageEditor({
               : `Atualizado em ${formatarDataCurta(base.atualizado_em)} por ${autorLegivel(base.atualizado_por)}`}
           </span>
         </div>
+        {(onPedirIA || onGerarRelatorio) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {onPedirIA && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={pedirIA}
+                disabled={ia !== null || salvando}
+                aria-busy={ia === "pedir"}
+                className="h-11 md:h-9"
+              >
+                <Sparkles aria-hidden />
+                {ia === "pedir" ? "Pensando…" : "Pedir à IA"}
+              </Button>
+            )}
+            {onGerarRelatorio && (
+              <Button
+                type="button"
+                onClick={gerarRelatorio}
+                disabled={ia !== null || salvando}
+                aria-busy={ia === "gerar"}
+                className="h-11 md:h-9"
+              >
+                <BarChart3 aria-hidden />
+                {ia === "gerar" ? "Gerando…" : "Gerar relatório"}
+              </Button>
+            )}
+            {ia && <span className="text-xs text-muted-foreground">Leva cerca de 1 minuto.</span>}
+          </div>
+        )}
         {base.relacionados.length > 0 && (
           <nav aria-label="Páginas relacionadas" className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">Relacionadas:</span>

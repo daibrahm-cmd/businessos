@@ -1,16 +1,15 @@
 // Briefing do negócio: junta as respostas das 13 páginas e pede ao Claude (CLI local) uma análise.
-// Roda só no servidor. Usa o `claude` já instalado e logado na máquina (sem chave de API).
-import { spawn } from "node:child_process"
+// Roda só no servidor. Usa o `claude` já instalado e logado na máquina (sem chave de API), via lib/ia/claude-cli.
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
+import { chamarClaude } from "@/lib/ia/claude-cli"
 import { calcularCompletude } from "@/lib/content/completude"
 import { exportarMarkdown } from "@/lib/content/exportar-md"
 import { obterDefinicao } from "@/lib/content/schemas"
 import { listarDocumentos } from "@/lib/content/servico"
 
 const ARQUIVO = path.join(process.cwd(), "briefing", "briefing.md")
-const TEMPO_LIMITE_MS = 4 * 60 * 1000
 
 /** Instruções fixas: formato do briefing e regras para não inventar nada. */
 const INSTRUCOES = `Você é uma consultora sênior de negócios analisando as respostas de uma fundadora que está começando.
@@ -50,47 +49,11 @@ export async function completudeGeral(): Promise<number> {
   return parciais.length ? Math.round(parciais.reduce((a, b) => a + b, 0) / parciais.length) : 0
 }
 
-/** Chama `claude -p` mandando o contexto pelo stdin. Sem ferramentas: o modelo só lê e escreve. */
-function chamarClaude(contexto: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const filho = spawn(
-      "claude",
-      ["-p", "--no-session-persistence", "--tools", "", "--append-system-prompt", INSTRUCOES],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    )
-    let saida = ""
-    let erro = ""
-    const timer = setTimeout(() => {
-      filho.kill("SIGTERM")
-      reject(new Error("O Claude demorou demais para responder (4 min). Tente de novo."))
-    }, TEMPO_LIMITE_MS)
-
-    filho.stdout.on("data", (d: Buffer) => (saida += d.toString()))
-    filho.stderr.on("data", (d: Buffer) => (erro += d.toString()))
-    filho.on("error", (e: NodeJS.ErrnoException) => {
-      clearTimeout(timer)
-      reject(
-        new Error(
-          e.code === "ENOENT"
-            ? "Não encontrei o comando `claude`. Instale o Claude Code e faça login (claude auth login)."
-            : `Falha ao iniciar o Claude: ${e.message}`,
-        ),
-      )
-    })
-    filho.on("close", (codigo) => {
-      clearTimeout(timer)
-      if (codigo === 0 && saida.trim()) resolve(saida.trim())
-      else reject(new Error(`O Claude terminou com erro (código ${codigo}). ${erro.trim().slice(0, 300)}`))
-    })
-    filho.stdin.end(contexto)
-  })
-}
-
 /** Gera um briefing novo a partir das respostas atuais e grava em briefing/briefing.md. */
 export async function gerarBriefing(): Promise<BriefingSalvo> {
   const docs = await listarDocumentos()
   const completude = await completudeGeral()
-  const texto = await chamarClaude(exportarMarkdown(docs))
+  const texto = await chamarClaude(exportarMarkdown(docs), INSTRUCOES)
   const geradoEm = new Date().toISOString()
 
   await mkdir(path.dirname(ARQUIVO), { recursive: true })
