@@ -37,7 +37,7 @@ function idsDe(corpo: Record<string, unknown>): string[] {
 }
 
 describe("GET /api/context", () => {
-  it("JSON 200 com os 12 documentos na ordem da navegação, sem cache", async () => {
+  it("JSON 200 com os 13 documentos na ordem da navegação, sem cache", async () => {
     const res = await GET(new Request(BASE));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/json; charset=utf-8");
@@ -64,7 +64,7 @@ describe("GET /api/context", () => {
     expect(res.headers.get("cache-control")).toBe("no-store");
     const texto = await res.text();
     expect(texto.startsWith("# BusinessOS — contexto do negócio\n\n> Estágio: Sistema de marca viva")).toBe(true);
-    expect(texto).toContain("· 12 documentos");
+    expect(texto).toContain("· 13 documentos");
     expect(texto).toContain("### Primeiros Clientes (`validacao/primeiros-clientes`)");
     expect(texto).toContain("**Ana Souza**");
     expect(texto.endsWith("\n")).toBe(true);

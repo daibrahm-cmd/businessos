@@ -39,8 +39,8 @@ export interface EntradaNota {
   grupos: GrupoNota[];
   destaques: DestaqueNota[];
   tabelas: TabelaNota[];
-  /** true quando a entrada (ou a seção "##" em que está) foi marcada como [DESCARTADA]. */
-  descartada?: boolean;
+  /** true quando a entrada (ou a seção "##" em que está) foi marcada como [SEGUNDO PLANO] (ou [DESCARTADA], marcador antigo). */
+  segundoPlano?: boolean;
 }
 
 const RE_LINHA_TABELA = /^\s*\|.*\|\s*$/;
@@ -48,9 +48,13 @@ const RE_SEPARADOR_TABELA = /^\s*\|[\s:|-]+\|\s*$/;
 const celulas = (linha: string) => linha.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
 const RE_TITULO = /^(#{1,3})\s+(.*)$/;
 const RE_ITEM = /^\s*[-*]\s+(.*)$/;
-const RE_ROTULO = /^([^:*]{1,40}):\s+(.+)$/;
+const RE_ROTULO = /^([^:*]{1,40}):\s+([\s\S]+)$/; // [\s\S] aceita quebras de linha
+// Linha recuada com "=" logo após um item é uma conta: vira uma linha própria dentro do item (separada por "\n")
+const RE_CONTA = /^\s{2,}\S.*=/;
 const RE_AUTOR_DATA = /\bd[ao]s?\s+([a-z0-9][a-z0-9-]*)\s*\((\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\)/i;
 const RE_NEGRITO = /\*\*([^*]+)\*\*/;
+/** Marcador de segundo plano no título: "[SEGUNDO PLANO: motivo]" (aceita também o antigo "[DESCARTADA…]"). */
+export const RE_SEGUNDO_PLANO = /SEGUNDO PLANO|DESCARTAD[AO]/i;
 const MAX_DESTAQUES = 3;
 const MAX_LEGENDA = 100;
 
@@ -80,7 +84,8 @@ function calcularDestaques(entrada: EntradaNota): DestaqueNota[] {
     for (const item of grupo.itens) {
       const negrito = RE_NEGRITO.exec(item.texto);
       if (!negrito || destaques.length >= MAX_DESTAQUES) continue;
-      const legenda = semMarcacao(item.texto);
+      // A legenda usa só a primeira linha do item; as contas (linhas seguintes) aparecem no cartão do grupo
+      const legenda = semMarcacao(item.texto.split("\n")[0]);
       destaques.push({
         rotulo: item.rotulo ?? "Destaque",
         valor: negrito[1].trim(),
@@ -98,7 +103,7 @@ export function analisarNotas(md: string): EntradaNota[] | null {
   let grupo: GrupoNota | null = null;
   let ultimoItem: ItemNota | null = null;
   let tabela: TabelaNota | null = null;
-  let paiDescartado = false;
+  let paiEmSegundoPlano = false;
 
   const fechar = () => {
     if (atual && (atual.titulo || atual.grupos.length > 0 || atual.introducao.length > 0 || atual.tabelas.length > 0)) entradas.push(atual);
@@ -138,9 +143,9 @@ export function analisarNotas(md: string): EntradaNota[] | null {
     if (titulo) {
       fechar();
       atual = novaEntrada(titulo[2].trim());
-      // Subtítulo "###" herda o descarte da seção "##" em que está; "##" ou "#" redefine
-      if (titulo[1].length < 3) paiDescartado = /DESCARTAD/i.test(titulo[2]);
-      if (/DESCARTAD/i.test(titulo[2]) || (titulo[1].length === 3 && paiDescartado)) atual.descartada = true;
+      // Subtítulo "###" herda o segundo plano da seção "##" em que está; "##" ou "#" redefine
+      if (titulo[1].length < 3) paiEmSegundoPlano = RE_SEGUNDO_PLANO.test(titulo[2]);
+      if (RE_SEGUNDO_PLANO.test(titulo[2]) || (titulo[1].length === 3 && paiEmSegundoPlano)) atual.segundoPlano = true;
       continue;
     }
     const item = RE_ITEM.exec(linha);
@@ -152,8 +157,10 @@ export function analisarNotas(md: string): EntradaNota[] | null {
     }
     const texto = linha.trim();
     if (ultimoItem) {
-      // Linha logo após um item continua o mesmo item (igual ao renderizador de Markdown)
-      const base = ultimoItem.rotulo ? `${ultimoItem.rotulo}: ${ultimoItem.texto} ${texto}` : `${ultimoItem.texto} ${texto}`;
+      // Linha logo após um item continua o mesmo item (igual ao renderizador de Markdown);
+      // uma conta recuada ("  a × b = c") fica em linha própria, para ser exibida como cálculo
+      const sep = RE_CONTA.test(linha) ? "\n" : " ";
+      const base = ultimoItem.rotulo ? `${ultimoItem.rotulo}: ${ultimoItem.texto}${sep}${texto}` : `${ultimoItem.texto}${sep}${texto}`;
       Object.assign(ultimoItem, criarItem(base));
     } else if (texto.endsWith(":")) {
       grupo = { titulo: texto.slice(0, -1).trim(), itens: [] };

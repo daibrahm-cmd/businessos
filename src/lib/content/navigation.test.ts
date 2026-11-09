@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DOC_IDS, NAVEGACAO, ehIdValido, montarId } from "@/lib/content/navigation";
 
 describe("navegação", () => {
-  it("tem os 12 ids na ordem da sidebar", () => {
+  it("tem os 13 ids na ordem da sidebar", () => {
     expect(DOC_IDS).toEqual([
       "founder/objetivo",
       "founder/estilo-de-vida",
@@ -13,6 +13,7 @@ describe("navegação", () => {
       "direcao/tese-de-valor",
       "direcao/oferta",
       "validacao/oferta",
+      "validacao/leads",
       "validacao/primeiros-clientes",
       "validacao/fluxo-de-caixa",
       "caixa/fluxo-de-caixa",

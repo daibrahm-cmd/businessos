@@ -1,4 +1,4 @@
-// Invariantes das 12 definições de página (§3.5).
+// Invariantes das 13 definições de página (§3.5).
 import { describe, expect, it } from "vitest";
 import { DOC_IDS, obterPagina } from "@/lib/content/navigation";
 import { DEFINICOES, obterDefinicao } from "@/lib/content/schemas";

@@ -1,5 +1,5 @@
 // scripts/validar-conteudo.ts
-// Valida content/ (12 páginas), agents/*.md, skills/*/SKILL.md e a estrutura do AGENTS.md.
+// Valida content/ (13 páginas), agents/*.md, skills/*/SKILL.md e a estrutura do AGENTS.md.
 // Sai com código 1 se houver erro. Uso: npm run content:validate
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -151,7 +151,7 @@ export async function validarProjeto(opcoes: {
     registrar(erros, relativo(raizProjeto, arquivo), validarArquivoAgente(texto, entrada.name.slice(0, -3), skills));
   }
 
-  // 4. AGENTS.md: seções obrigatórias e mapa com os 12 ids.
+  // 4. AGENTS.md: seções obrigatórias e mapa com os 13 ids.
   const agentsMd = await lerSeExistir(path.join(raizProjeto, "AGENTS.md"));
   if (agentsMd === undefined) {
     erros.push({ arquivo: "AGENTS.md", caminho: "", mensagem: "Arquivo ausente." });

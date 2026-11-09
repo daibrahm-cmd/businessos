@@ -10,7 +10,7 @@ Cada página é gravada como um arquivo `content/<secao>/<pagina>.md` (front mat
 |---|---|
 | **Founder** | Objetivo (`founder/objetivo`) · Estilo de Vida (`founder/estilo-de-vida`) |
 | **Direção** | Mapa de Mercado (`direcao/mapa-de-mercado`) · Imã de Problemas (`direcao/ima-de-problemas`) · Perfil de Cliente Ideal (`direcao/perfil-de-cliente-ideal`) · Tese de Valor (`direcao/tese-de-valor`) · Oferta (`direcao/oferta`) |
-| **Validação** | Oferta (`validacao/oferta`) · Primeiros Clientes (`validacao/primeiros-clientes`) · Fluxo de Caixa (`validacao/fluxo-de-caixa`) |
+| **Validação** | Oferta (`validacao/oferta`) · Leads (`validacao/leads`) · Primeiros Clientes (`validacao/primeiros-clientes`) · Fluxo de Caixa (`validacao/fluxo-de-caixa`) |
 | **Caixa** | Fluxo de Caixa (`caixa/fluxo-de-caixa`) · ERP (`caixa/erp`) |
 
 "Oferta" e "Fluxo de Caixa" aparecem em duas seções com papéis diferentes (desenho × teste; orçamento do teste × operação). Use sempre o id.

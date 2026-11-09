@@ -23,7 +23,8 @@ export type NomeIcone =
   | "users"
   | "piggy-bank"
   | "wallet"
-  | "workflow";
+  | "workflow"
+  | "contact-round";
 
 export interface PaginaNav {
   slug: string;
@@ -112,6 +113,12 @@ export const NAVEGACAO = [
         titulo: "Oferta",
         descricao: "A oferta testada no mercado, o critério de sucesso e o que mudou a cada rodada.",
         icone: "flask-conical",
+      },
+      {
+        slug: "leads",
+        titulo: "Leads",
+        descricao: "Mini CRM: empresas e contatos encontrados pelos agentes, do primeiro achado até a conversa.",
+        icone: "contact-round",
       },
       {
         slug: "primeiros-clientes",

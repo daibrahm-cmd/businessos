@@ -45,7 +45,7 @@ describe("validarProjeto", () => {
     await escrever("content/direcao/perfil-de-cliente-ideal.md", EXEMPLO_PERFIL);
     const r = await validarProjeto({ raizProjeto: raiz });
     expect(r.erros).toEqual([]);
-    expect(r.avisos).toHaveLength(11);
+    expect(r.avisos).toHaveLength(12);
   });
 
   it("arquivo de conteúdo inválido é erro", async () => {

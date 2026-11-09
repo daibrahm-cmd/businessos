@@ -1,5 +1,5 @@
 // src/lib/content/schemas/index.ts
-// Registro das 12 definições de página, indexadas pelo id da navegação.
+// Registro das 13 definições de página, indexadas pelo id da navegação.
 import { ehIdValido, type DocId } from "@/lib/content/navigation";
 import { ErroConteudo } from "@/lib/content/errors";
 import type { CollectionDef, FieldDef, PageDefinition } from "@/lib/content/schemas/field-types";
@@ -12,12 +12,13 @@ import direcaoPerfilDeClienteIdeal from "./paginas/direcao-perfil-de-cliente-ide
 import direcaoTeseDeValor from "./paginas/direcao-tese-de-valor";
 import direcaoOferta from "./paginas/direcao-oferta";
 import validacaoOferta from "./paginas/validacao-oferta";
+import validacaoLeads from "./paginas/validacao-leads";
 import validacaoPrimeirosClientes from "./paginas/validacao-primeiros-clientes";
 import validacaoFluxoDeCaixa from "./paginas/validacao-fluxo-de-caixa";
 import caixaFluxoDeCaixa from "./paginas/caixa-fluxo-de-caixa";
 import caixaErp from "./paginas/caixa-erp";
 
-/** As 12 definições, indexadas por id (o tipo garante uma por id da navegação). */
+/** As 13 definições, indexadas por id (o tipo garante uma por id da navegação). */
 export const DEFINICOES: Readonly<Record<DocId, PageDefinition>> = {
   "founder/objetivo": founderObjetivo,
   "founder/estilo-de-vida": founderEstiloDeVida,
@@ -27,6 +28,7 @@ export const DEFINICOES: Readonly<Record<DocId, PageDefinition>> = {
   "direcao/tese-de-valor": direcaoTeseDeValor,
   "direcao/oferta": direcaoOferta,
   "validacao/oferta": validacaoOferta,
+  "validacao/leads": validacaoLeads,
   "validacao/primeiros-clientes": validacaoPrimeirosClientes,
   "validacao/fluxo-de-caixa": validacaoFluxoDeCaixa,
   "caixa/fluxo-de-caixa": caixaFluxoDeCaixa,

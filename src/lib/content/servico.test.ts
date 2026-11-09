@@ -176,7 +176,7 @@ describe("atualizarDocumento", () => {
 });
 
 describe("listarDocumentos", () => {
-  it("devolve 12 documentos", async () => {
-    expect(await listarDocumentos()).toHaveLength(12);
+  it("devolve 13 documentos", async () => {
+    expect(await listarDocumentos()).toHaveLength(13);
   });
 });

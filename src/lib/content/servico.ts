@@ -38,7 +38,7 @@ function mesmoInstante(a: string, b: string): boolean {
   return Number.isNaN(ta) || Number.isNaN(tb) ? a === b : ta === tb;
 }
 
-/** Os 12 documentos, na ordem da navegação. */
+/** Os 13 documentos, na ordem da navegação. */
 export async function listarDocumentos(): Promise<ContentDoc[]> {
   return getContentRepository().list();
 }

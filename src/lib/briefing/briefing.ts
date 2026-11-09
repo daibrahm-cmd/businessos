@@ -1,4 +1,4 @@
-// Briefing do negócio: junta as respostas das 12 páginas e pede ao Claude (CLI local) uma análise.
+// Briefing do negócio: junta as respostas das 13 páginas e pede ao Claude (CLI local) uma análise.
 // Roda só no servidor. Usa o `claude` já instalado e logado na máquina (sem chave de API).
 import { spawn } from "node:child_process"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
@@ -14,7 +14,7 @@ const TEMPO_LIMITE_MS = 4 * 60 * 1000
 
 /** Instruções fixas: formato do briefing e regras para não inventar nada. */
 const INSTRUCOES = `Você é uma consultora sênior de negócios analisando as respostas de uma fundadora que está começando.
-Abaixo vem o contexto do negócio em Markdown (12 páginas: Founder, Direção, Validação, Caixa).
+Abaixo vem o contexto do negócio em Markdown (13 páginas: Founder, Direção, Validação, Caixa).
 
 Escreva um BRIEFING em português do Brasil, em Markdown, com exatamente estas seções:
 ## Resumo em 5 linhas
@@ -43,7 +43,7 @@ export interface BriefingSalvo {
   completude: number
 }
 
-/** Percentual médio de preenchimento das 12 páginas (0–100). */
+/** Percentual médio de preenchimento das 13 páginas (0–100). */
 export async function completudeGeral(): Promise<number> {
   const docs = await listarDocumentos()
   const parciais = docs.map((d) => calcularCompletude(d, obterDefinicao(d.id)).percentual)

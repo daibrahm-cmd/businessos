@@ -61,3 +61,31 @@ describe("analisarNotas", () => {
     expect(analisarNotas("")).toBeNull();
   });
 });
+
+describe("contas em linhas de cálculo", () => {
+  const MD = `Decisão:\n- Capital: o fôlego sai dos R$ 80.000.\n  6 meses × R$ 5.000 = R$ 30.000\n  R$ 80.000 − R$ 30.000 = **R$ 50.000** para investir\n- Tempo: **50 h por semana**.\n`;
+
+  it("mantém cada conta em linha própria dentro do item, com o rótulo", () => {
+    const [e] = analisarNotas(MD)!;
+    expect(e.titulo).toBeNull(); // nota sem título: a tela não mostra cabeçalho
+    expect(e.grupos[0].itens[0].rotulo).toBe("Capital");
+    expect(e.grupos[0].itens[0].texto.split("\n")).toEqual([
+      "O fôlego sai dos R$ 80.000.",
+      "6 meses × R$ 5.000 = R$ 30.000",
+      "R$ 80.000 − R$ 30.000 = **R$ 50.000** para investir",
+    ]);
+  });
+
+  it("a legenda do destaque fica em uma linha só", () => {
+    const [e] = analisarNotas(MD)!;
+    expect(e.destaques[0].legenda).not.toContain("\n");
+  });
+});
+
+describe("segundo plano", () => {
+  it("reconhece [SEGUNDO PLANO] e o antigo [DESCARTADA], e o subtítulo herda da seção", () => {
+    const md = "## A [SEGUNDO PLANO: antigo]\n\nG:\n\n- x\n\n### Sub\n\nH:\n\n- y\n\n## B [DESCARTADA: velho]\n\nI:\n\n- z\n\n## C\n\nJ:\n\n- w\n";
+    const e = analisarNotas(md)!;
+    expect(e.map((x) => !!x.segundoPlano)).toEqual([true, true, true, false]);
+  });
+});

@@ -2,7 +2,7 @@
 
 ## O que é
 
-O BusinessOS é um app local que organiza o contexto de um negócio em 12 páginas, divididas em 4 seções (Founder, Direção, Validação e Caixa). Cada página é um arquivo `content/<secao>/<pagina>.md` (front matter YAML + notas em Markdown), o mesmo conteúdo que a fundadora edita na interface. Agentes leem e escrevem esse contexto pela API (`/api/context`) ou, com o app parado, direto nos arquivos.
+O BusinessOS é um app local que organiza o contexto de um negócio em 13 páginas, divididas em 4 seções (Founder, Direção, Validação e Caixa). Cada página é um arquivo `content/<secao>/<pagina>.md` (front matter YAML + notas em Markdown), o mesmo conteúdo que a fundadora edita na interface. Agentes leem e escrevem esse contexto pela API (`/api/context`) ou, com o app parado, direto nos arquivos.
 
 ## Mapa de documentos
 
@@ -18,6 +18,7 @@ Os ids são `<secao>/<pagina>`. Atenção: há títulos repetidos ("Oferta" e "F
 | `direcao/tese-de-valor` | Tese de Valor | A hipótese central: por que este cliente escolheria você em vez das alternativas. |
 | `direcao/oferta` | Oferta (desenho) | O que será vendido, para quem, por quanto e em quais condições. |
 | `validacao/oferta` | Oferta (teste) | A oferta testada no mercado, o critério de sucesso e o que mudou a cada rodada. |
+| `validacao/leads` | Leads | Mini CRM: empresas e contatos encontrados pelos agentes, do primeiro achado até a conversa. |
 | `validacao/primeiros-clientes` | Primeiros Clientes | Os primeiros clientes e conversas de venda como evidência de validação. |
 | `validacao/fluxo-de-caixa` | Fluxo de Caixa (orçamento do teste) | O caixa mínimo do período de teste: quanto gastar e quando parar. |
 | `caixa/fluxo-de-caixa` | Fluxo de Caixa (operação) | A operação recorrente: entradas, saídas, saldo e projeção. |
@@ -30,6 +31,7 @@ Páginas com coleções de itens (campo `itens`, discriminados por `colecao`):
 | `direcao/mapa-de-mercado` | `segmentos`, `concorrentes` |
 | `direcao/ima-de-problemas` | `problemas` |
 | `validacao/oferta` | `iteracoes` |
+| `validacao/leads` | `leads` |
 | `validacao/primeiros-clientes` | `clientes` |
 | `validacao/fluxo-de-caixa` | `lancamentos` |
 | `caixa/fluxo-de-caixa` | `lancamentos` |

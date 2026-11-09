@@ -86,13 +86,13 @@ describe("FileSystemContentRepository.get", () => {
 });
 
 describe("FileSystemContentRepository.list", () => {
-  it("devolve os 12 na ordem da navegação e ignora arquivos extras", async () => {
+  it("devolve os 13 na ordem da navegação e ignora arquivos extras", async () => {
     await escrever("validacao/primeiros-clientes.md", EXEMPLO_CLIENTES);
     await escrever("direcao/rascunho-solto.md", "qualquer coisa");
     await escrever("outra/coisa.md", "x");
     const docs = await repo.list();
     expect(docs.map((d) => d.id)).toEqual(DOC_IDS);
-    expect(docs[8].itens).toHaveLength(3);
+    expect(docs[9].itens).toHaveLength(3);
   });
 
   it("agrega inválidos em um único erro com caminho prefixado pelo id", async () => {

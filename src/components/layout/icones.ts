@@ -1,5 +1,6 @@
 // Mapa NomeIcone (navegação, dados puros) → componente de ícone do lucide-react.
 import {
+  ContactRound,
   FlaskConical,
   Lightbulb,
   Magnet,
@@ -30,4 +31,5 @@ export const ICONES: Record<NomeIcone, LucideIcon> = {
   "piggy-bank": PiggyBank,
   wallet: Wallet,
   workflow: Workflow,
+  "contact-round": ContactRound,
 }
