@@ -72,7 +72,7 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
   }
 
   // Alvo de toque ≥ 44 px no mobile; compacto no desktop. Itens das seções: fonte ~30% menor (14 → 10 px), sem ícones.
-  const classeBotao = "h-11 text-[10px] md:h-8"
+  const classeBotao = "h-11 text-[11.5px] md:h-8 data-active:bg-[#3F495A] data-active:text-[#EFEFEF]"
 
   return (
     <Sidebar collapsible="offcanvas">

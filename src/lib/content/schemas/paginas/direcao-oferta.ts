@@ -32,6 +32,9 @@ export default definirPagina("direcao/oferta", {
 
     // ── Preço e condições ────────────────────────────────────────────────────
     { nome: "preco", rotulo: "Preço", tipo: "moeda", min: 0, grupo: "Preço e condições" },
+    // Quando a oferta tem mais de uma versão, cada linha traz uma versão com o seu valor
+    { nome: "precos_por_versao", rotulo: "Preço por versão", tipo: "lista-texto", grupo: "Preço e condições",
+      placeholder: "Ex.: Versão básica: R$ 10.000" },
     { nome: "modelo_de_cobranca", rotulo: "Modelo de cobrança", tipo: "selecao", grupo: "Preço e condições", opcoes: [
       { valor: "unico", rotulo: "Pagamento único" },
       { valor: "mensal", rotulo: "Mensal" },

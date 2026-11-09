@@ -21,7 +21,7 @@ export function CabecalhoPagina({ eyebrow, titulo, descricao, acoes, children }:
           {eyebrow}
         </p>
       )}
-      <h1 className="font-display text-5xl leading-[0.95] font-semibold tracking-tight break-words md:text-7xl">
+      <h1 className="font-display text-[40.8px] leading-[0.95] font-semibold tracking-tight break-words md:text-[61.2px]">
         {titulo}
       </h1>
       {descricao && <p className="max-w-2xl text-[12.65px] text-primary md:text-[14.95px]">{descricao}</p>}
