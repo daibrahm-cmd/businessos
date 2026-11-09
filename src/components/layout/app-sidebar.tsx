@@ -5,7 +5,21 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
+import {
+  Bot,
+  ChevronRight,
+  Compass,
+  FileText,
+  FlaskConical,
+  Footprints,
+  House,
+  Target,
+  UserRound,
+  Users,
+  Wallet,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react"
 
 import { ROTULOS_STATUS } from "@/components/cards/status-badge"
 import {
@@ -20,12 +34,48 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { ehSecaoValida, hrefDaSecao, hrefDoDocumento, NAVEGACAO, type DocId, type SecaoSlug } from "@/lib/content/navigation"
+import { hrefDaSecao, hrefDoDocumento, NAVEGACAO, type DocId, type SecaoSlug } from "@/lib/content/navigation"
 import type { Status } from "@/lib/content/types"
 import { cn } from "@/lib/utils"
 
 import { MarcaDB } from "./marca-db"
 import { StageBadge } from "./stage-badge"
+
+interface ItemMenu {
+  href: string
+  rotulo: string
+  icone: LucideIcon
+  /** Página de conteúdo (mostra o pontinho de status). */
+  id?: DocId
+}
+
+/** Geral: telas fora das seções. */
+const ITENS_GERAL: readonly ItemMenu[] = [
+  { href: "/", rotulo: "Início", icone: House },
+  { href: "/comecar", rotulo: "Passo a passo", icone: Footprints },
+  { href: "/briefing", rotulo: "Briefing", icone: FileText },
+]
+
+/** Ícone de cada seção do negócio. */
+const ICONE_DA_SECAO: Record<string, LucideIcon> = {
+  founder: UserRound,
+  direcao: Compass,
+  validacao: FlaskConical,
+  caixa: Wallet,
+}
+
+/** Sistema: o que roda por trás e a página Leads, na ordem: Leads, Oportunidades, Workflow, Agentes. */
+const ITENS_SISTEMA: readonly ItemMenu[] = [
+  {
+    href: hrefDoDocumento("validacao/leads"),
+    rotulo: "Leads",
+    icone: Users,
+    id: "validacao/leads",
+  },
+  { href: "/oportunidades", rotulo: "Oportunidades", icone: Target },
+  { href: "/workflow", rotulo: "Workflow", icone: Workflow },
+  { href: "/agentes", rotulo: "Agentes", icone: Bot },
+]
 
 export interface AppSidebarProps {
   /** Status de cada página (pontinho à direita). Ausente = sem indicador. */
@@ -40,10 +90,7 @@ function PontoStatus({ status }: { status?: Status }) {
       {status !== "vazio" && (
         <span
           aria-hidden
-          className={cn(
-            "size-1.5 rounded-full",
-            status === "validado" ? "bg-foreground" : "border border-foreground/70",
-          )}
+          className={cn("size-1.5 rounded-full", status === "validado" ? "bg-foreground" : "border border-foreground/70")}
         />
       )}
       <span className="sr-only">{ROTULOS_STATUS[status]}</span>
@@ -51,28 +98,90 @@ function PontoStatus({ status }: { status?: Status }) {
   )
 }
 
+/** Um grupo de itens planos: etiqueta pequena + ícone e nome de cada item, sem acordeão. */
+function Grupo({
+  titulo,
+  itens,
+  ativo,
+  aoNavegar,
+  statusPorId,
+  recolhivel,
+}: {
+  recolhivel?: { aberto: boolean; alternar: () => void }
+  titulo: string
+  itens: readonly ItemMenu[]
+  ativo: (i: ItemMenu) => boolean
+  aoNavegar: () => void
+  statusPorId?: AppSidebarProps["statusPorId"]
+}) {
+  // Alvo de toque ≥ 44 px no mobile; compacto no desktop. Item ativo: pílula Marinho (claro) ou Grisalho (escuro).
+  const classeBotao =
+    "h-11 gap-2.5 text-[11.5px] md:h-8 data-active:bg-[#3F495A] data-active:text-[#EFEFEF] dark:data-active:bg-[#B0C2C2] dark:data-active:text-[#373634]"
+  return (
+    <SidebarGroup className="px-2 py-0">
+      {recolhivel ? (
+        // Grupo recolhível: o título é um botão que abre/fecha a lista
+        <button
+          type="button"
+          onClick={recolhivel.alternar}
+          aria-expanded={recolhivel.aberto}
+          className="flex w-full items-center justify-between rounded-md px-4 pt-3 pb-0.5 text-[10px] font-medium tracking-[0.18em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring"
+        >
+          {titulo}
+          <ChevronRight aria-hidden className={cn("size-3 transition-transform", recolhivel.aberto && "rotate-90")} />
+        </button>
+      ) : (
+        <p className="px-4 pt-3 pb-0.5 text-[10px] font-medium tracking-[0.18em] text-muted-foreground uppercase">{titulo}</p>
+      )}
+      <SidebarGroupContent hidden={recolhivel ? !recolhivel.aberto : false}>
+        <SidebarMenu>
+          {itens.map((item) => (
+            <SidebarMenuItem key={item.href}>
+              <SidebarMenuButton asChild isActive={ativo(item)} className={classeBotao}>
+                <Link href={item.href} onClick={aoNavegar} aria-current={ativo(item) ? "page" : undefined}>
+                  <item.icone aria-hidden className="size-3.5 shrink-0" />
+                  <span className="truncate">{item.rotulo}</span>
+                  {item.id && <PontoStatus status={statusPorId?.[item.id]} />}
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
+
 export function AppSidebar({ statusPorId }: AppSidebarProps) {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
-
-  // As 4 seções ficam sempre visíveis; só as páginas abrem/fecham (uma seção por vez), no desktop e no mobile.
-  // Começa aberta a seção da página atual.
-  // Telas fora das seções: Início, Passo a passo e Briefing → grupo "geral"; Workflow e Agentes → grupo "sistema".
-  const primeiroSegmento = pathname.split("/")[1] ?? ""
-  const secaoAtual = ehSecaoValida(primeiroSegmento)
-    ? primeiroSegmento
-    : primeiroSegmento === "workflow" || primeiroSegmento === "agentes"
-      ? "sistema"
-      : "geral"
-  const [secaoAberta, setSecaoAberta] = useState<string | null>(secaoAtual)
 
   // No mobile, navegar fecha o sheet
   const aoNavegar = () => {
     if (isMobile) setOpenMobile(false)
   }
 
-  // Alvo de toque ≥ 44 px no mobile; compacto no desktop. Itens das seções: fonte ~30% menor (14 → 10 px), sem ícones.
-  const classeBotao = "h-11 text-[11.5px] md:h-8 data-active:bg-[#3F495A] data-active:text-[#EFEFEF] dark:data-active:bg-[#B0C2C2] dark:data-active:text-[#373634]"
+  // Seções: Founder, Direção, Validação e Caixa. Cada uma abre a capa com as páginas dentro dela.
+  const itensSecoes: ItemMenu[] = NAVEGACAO.map((secao) => ({
+    href: hrefDaSecao(secao.slug as SecaoSlug),
+    rotulo: secao.nome,
+    icone: ICONE_DA_SECAO[secao.slug] ?? FlaskConical,
+  }))
+  // A seção fica ativa em qualquer página dela, menos na Leads (que é do grupo Sistema)
+  const noSistema = ITENS_SISTEMA.some((i) => i.href === pathname)
+  const secaoAtiva = (i: ItemMenu) => !noSistema && (pathname === i.href || pathname.startsWith(`${i.href}/`))
+
+  // Seções e Sistema recolhem ao clicar no título; abrem sozinhos quando a página atual está dentro deles.
+  // Sem escolha manual (null) vale o estado automático — derivado no render, sem useEffect.
+  const [manual, setManual] = useState<{ geral: boolean | null; secoes: boolean | null; sistema: boolean | null }>({
+    geral: null,
+    secoes: null,
+    sistema: null,
+  })
+  // Geral abre por padrão (é o ponto de partida); as outras seguem a página atual
+  const geralAberto = manual.geral ?? true
+  const secoesAbertas = manual.secoes ?? itensSecoes.some(secaoAtiva)
+  const sistemaAberto = manual.sistema ?? noSistema
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -89,159 +198,35 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent className="gap-1 pb-2">
-        {/* Geral: Início primeiro, depois as telas fora das seções; abre/fecha como as demais */}
-        <SidebarGroup className="px-2 py-1.5">
-          <button
-            type="button"
-            aria-expanded={secaoAberta === "geral"}
-            onClick={() => setSecaoAberta(secaoAberta === "geral" ? null : "geral")}
-            className="flex h-11 w-full items-center justify-between rounded-md px-2 text-xs font-medium tracking-wider text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring md:h-8"
-          >
-            GERAL
-            <ChevronDown
-              aria-hidden
-              className={cn("size-4 transition-transform", secaoAberta === "geral" && "rotate-180")}
-            />
-          </button>
-          <SidebarGroupContent className={cn(secaoAberta !== "geral" && "hidden")}>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"} className={classeBotao}>
-                  <Link href="/" onClick={aoNavegar} aria-current={pathname === "/" ? "page" : undefined}>
-                    <span>Início</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/comecar"} className={classeBotao}>
-                  <Link
-                    href="/comecar"
-                    onClick={aoNavegar}
-                    aria-current={pathname === "/comecar" ? "page" : undefined}
-                  >
-                    <span>Passo a passo</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/oportunidades"} className={classeBotao}>
-                  <Link
-                    href="/oportunidades"
-                    onClick={aoNavegar}
-                    aria-current={pathname === "/oportunidades" ? "page" : undefined}
-                  >
-                    <span>Oportunidades</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/briefing"} className={classeBotao}>
-                  <Link
-                    href="/briefing"
-                    onClick={aoNavegar}
-                    aria-current={pathname === "/briefing" ? "page" : undefined}
-                  >
-                    <span>Briefing</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {NAVEGACAO.map((secao) => (
-          <SidebarGroup key={secao.slug} className="px-2 py-1.5">
-            {/* Cabeçalho da seção: o nome abre a capa (cards-resumo) e expande as páginas; a seta só expande/recolhe */}
-            <div className="flex items-center">
-              <Link
-                href={hrefDaSecao(secao.slug as SecaoSlug)}
-                onClick={() => {
-                  setSecaoAberta(secao.slug)
-                  aoNavegar()
-                }}
-                aria-current={pathname === hrefDaSecao(secao.slug as SecaoSlug) ? "page" : undefined}
-                className={cn(
-                  "flex h-11 min-w-0 flex-1 items-center rounded-md px-2 text-xs font-medium tracking-wider uppercase outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring md:h-8",
-                  pathname === hrefDaSecao(secao.slug as SecaoSlug)
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "text-muted-foreground",
-                )}
-              >
-                {secao.titulo}
-              </Link>
-              <button
-                type="button"
-                aria-expanded={secaoAberta === secao.slug}
-                aria-label={`${secaoAberta === secao.slug ? "Recolher" : "Expandir"} ${secao.nome}`}
-                onClick={() => setSecaoAberta(secaoAberta === secao.slug ? null : secao.slug)}
-                className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring md:size-8"
-              >
-                <ChevronDown
-                  aria-hidden
-                  className={cn("size-4 transition-transform", secaoAberta === secao.slug && "rotate-180")}
-                />
-              </button>
-            </div>
-            <SidebarGroupContent className={cn(secaoAberta !== secao.slug && "hidden")}>
-              <SidebarMenu>
-                {secao.paginas.map((pagina) => {
-                  const id = `${secao.slug}/${pagina.slug}` as DocId
-                  const href = hrefDoDocumento(id)
-                  return (
-                    <SidebarMenuItem key={id}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname === href}
-                        className={classeBotao}
-                      >
-                        <Link
-                          href={href}
-                          onClick={aoNavegar}
-                          aria-current={pathname === href ? "page" : undefined}
-                        >
-                          <span className="truncate">{pagina.titulo}</span>
-                          <PontoStatus status={statusPorId?.[id]} />
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
-        {/* Sistema: o que roda por trás (agentes e fila de trabalho); abre/fecha como as demais */}
-        <SidebarGroup className="px-2 py-1.5">
-          <button
-            type="button"
-            aria-expanded={secaoAberta === "sistema"}
-            onClick={() => setSecaoAberta(secaoAberta === "sistema" ? null : "sistema")}
-            className="flex h-11 w-full items-center justify-between rounded-md px-2 text-xs font-medium tracking-wider text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring md:h-8"
-          >
-            SISTEMA
-            <ChevronDown
-              aria-hidden
-              className={cn("size-4 transition-transform", secaoAberta === "sistema" && "rotate-180")}
-            />
-          </button>
-          <SidebarGroupContent className={cn(secaoAberta !== "sistema" && "hidden")}>
-            <SidebarMenu>
-              {[
-                { href: "/workflow", rotulo: "Workflow" },
-                { href: "/agentes", rotulo: "Agentes" },
-              ].map(({ href, rotulo }) => (
-                <SidebarMenuItem key={href}>
-                  <SidebarMenuButton asChild isActive={pathname === href} className={classeBotao}>
-                    <Link href={href} onClick={aoNavegar} aria-current={pathname === href ? "page" : undefined}>
-                      <span>{rotulo}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <Grupo
+          titulo="Geral"
+          itens={ITENS_GERAL}
+          ativo={(i) => pathname === i.href}
+          aoNavegar={aoNavegar}
+          recolhivel={{ aberto: geralAberto, alternar: () => setManual((m) => ({ ...m, geral: !geralAberto })) }}
+        />
+        <Grupo
+          titulo="Seções"
+          itens={itensSecoes}
+          ativo={secaoAtiva}
+          aoNavegar={aoNavegar}
+          recolhivel={{
+            aberto: secoesAbertas,
+            alternar: () => setManual((m) => ({ ...m, secoes: !secoesAbertas })),
+          }}
+        />
+        <Grupo
+          titulo="Sistema"
+          itens={ITENS_SISTEMA}
+          ativo={(i) => pathname === i.href}
+          aoNavegar={aoNavegar}
+          statusPorId={statusPorId}
+          recolhivel={{
+            aberto: sistemaAberto,
+            alternar: () => setManual((m) => ({ ...m, sistema: !sistemaAberto })),
+          }}
+        />
       </SidebarContent>
-
 
       <SidebarRail />
     </Sidebar>
