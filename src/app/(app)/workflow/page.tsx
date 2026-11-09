@@ -1,6 +1,7 @@
 // Workflow: quais agentes estão trabalhando e em quê, em formato Kanban.
 import type { Metadata } from "next"
 
+import { AvatarAgente } from "@/components/agentes/avatar-agente"
 import { AppHeader } from "@/components/layout/app-header"
 import { CabecalhoPagina } from "@/components/relatorio/cabecalho-pagina"
 import { listarAgentes, situacaoDosAgentes } from "@/lib/workflow/agentes"
@@ -57,16 +58,9 @@ export default async function WorkflowPage() {
                 const ativo = a.emAndamento.length > 0
                 return (
                   <div key={a.nome} className="flex items-start gap-3 rounded-lg p-3 text-sm ring-1 ring-foreground/10">
-                    <span
-                      aria-hidden
-                      className={
-                        ativo
-                          ? "mt-1.5 size-2 shrink-0 animate-pulse rounded-full bg-primary"
-                          : "mt-1.5 size-2 shrink-0 rounded-full border border-foreground/50"
-                      }
-                    />
+                    <AvatarAgente nome={a.nome} tamanho={36} className={ativo ? "ring-2 ring-primary" : undefined} />
                     <div className="min-w-0">
-                      <p className="font-mono text-xs">{a.nome}</p>
+                      <p className="text-sm font-medium">{a.apelido ?? a.nome}</p>
                       <p className="truncate text-xs text-muted-foreground">{a.papel}</p>
                       <p className="mt-1 text-sm">
                         {ativo ? a.emAndamento.map((t) => t.titulo).join(" · ") : <span className="text-muted-foreground">Ocioso</span>}
@@ -95,7 +89,7 @@ export default async function WorkflowPage() {
               </div>
             )}
 
-            <Quadro tarefas={tarefas} />
+            <Quadro tarefas={tarefas} apelidos={Object.fromEntries(agentes.map((a) => [a.nome, a.apelido ?? a.nome]))} />
           </>
         )}
       </div>

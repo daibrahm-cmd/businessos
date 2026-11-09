@@ -16,6 +16,7 @@
     "content:validate": "tsx scripts/validar-conteudo.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",
     "gray-matter": "^4.0.3",
