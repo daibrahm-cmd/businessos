@@ -2,7 +2,7 @@
 
 ## O que é
 
-O BusinessOS é um app local que organiza o contexto de um negócio em 13 páginas, divididas em 4 seções (Founder, Direção, Validação e Caixa). Cada página é um arquivo `content/<secao>/<pagina>.md` (front matter YAML + notas em Markdown), o mesmo conteúdo que a fundadora edita na interface. Agentes leem e escrevem esse contexto pela API (`/api/context`) ou, com o app parado, direto nos arquivos.
+O BusinessOS é um app que organiza o contexto de um negócio em 13 páginas, divididas em 4 seções (Founder, Direção, Validação e Caixa). Cada página é um documento (`id = <secao>/<pagina>`) guardado no Supabase (tabela `documentos`, isolada por usuário via RLS), o mesmo conteúdo que a pessoa edita na interface. Agentes leem e escrevem esse contexto **somente pela API** (`/api/context`), que atua como o usuário `BUSINESSOS_API_USER_ID`. Os arquivos `content/*.md` são só exportação/backup e fonte da migração inicial: editá-los não altera o app.
 
 ## Mapa de documentos
 
@@ -41,7 +41,7 @@ As demais páginas têm só `campos`. A lista exata de campos, tipos e opções 
 
 ## Como ler
 
-O app roda em `http://127.0.0.1:3000` (`npm run dev`). Se `BUSINESSOS_API_TOKEN` estiver definido, todas as requisições (GET e PUT) precisam do header `Authorization: Bearer <token>`.
+O app roda em `http://127.0.0.1:3000` (`npm run dev`) com o Supabase configurado (`.env.local`). Se `BUSINESSOS_API_TOKEN` estiver definido, todas as requisições (GET e PUT) precisam do header `Authorization: Bearer <token>`.
 
 ```bash
 # Tudo, em Markdown pronto para colar em um prompt
@@ -56,7 +56,7 @@ curl -s "http://127.0.0.1:3000/api/context?secao=direcao&definicoes=1"
 # Uma página: JSON com { documento, definicao }
 curl -s http://127.0.0.1:3000/api/context/direcao/tese-de-valor
 
-# Uma página: arquivo .md canônico (front matter + notas), útil para editar à mão
+# Uma página em Markdown (front matter + notas), para backup ou leitura
 curl -s "http://127.0.0.1:3000/api/context/direcao/tese-de-valor?format=md"
 
 # Com token
@@ -66,7 +66,7 @@ curl -s -H "Authorization: Bearer $BUSINESSOS_API_TOKEN" "http://127.0.0.1:3000/
 - `?format=md` (padrão do consolidado é `json`), `?ids=a,b`, `?secao=x` e `?definicoes=1` (só JSON) se combinam; `secao` + `ids` = interseção.
 - O Markdown consolidado mostra a data como "08/11/2026 às 11:32", não em ISO. Para usar `esperado_atualizado_em` leia o valor exato de `documento.atualizado_em` no JSON da página (ou do front matter em `?format=md` da página).
 - Uma página ainda não salva responde 200 com o template vazio (`status: vazio`, `atualizado_em: 1970-01-01T00:00:00.000Z`).
-- Sem a API: leia `content/<secao>/<pagina>.md`.
+- Não leia `content/<secao>/<pagina>.md` como fonte: o conteúdo vivo está no banco. Para um backup em Markdown, use `?format=md`.
 
 ## Como escrever
 
@@ -107,8 +107,8 @@ curl -X PUT http://127.0.0.1:3000/api/context/validacao/primeiros-clientes \
 
 - Campo obrigatório do corpo: `atualizado_por: "agente:<nome>"` (o nome é o do arquivo em `agents/<nome>.md`).
 - Use `esperado_atualizado_em` (valor lido no GET) para não sobrescrever edições recentes. Em `409 CONFLITO` a resposta traz o documento atual: releia, refaça o patch em cima dele e envie de novo.
-- Em `400 PAYLOAD_INVALIDO` leia `erro.detalhes` (caminho + mensagem) e corrija. Outros códigos: `401` (token), `403` (produção sem token), `404` (id inexistente), `413` (corpo > 256 KiB), `415` (faltou `Content-Type: application/json`), `422` (arquivo em disco inválido).
-- Edição direta de arquivo: só se o app não estiver rodando. Mantenha a ordem das chaves do front matter, não mexa em `id`, `secao`, `pagina`, `titulo`, `descricao`, `estagio`, e rode `npm run content:validate` ao terminar.
+- Em `400 PAYLOAD_INVALIDO` leia `erro.detalhes` (caminho + mensagem) e corrija. Outros códigos: `401` (token), `403` (produção sem token), `404` (id inexistente), `413` (corpo > 256 KiB), `415` (faltou `Content-Type: application/json`), `422` (documento salvo inválido).
+- Não há edição direta de arquivo: toda escrita passa pela API (ela valida e faz merge). `npm run content:validate` continua validando `agents/`, `skills/` e os `.md` de `content/` usados como seed.
 
 ## Regras (obrigatórias)
 
@@ -135,7 +135,7 @@ curl -X POST http://127.0.0.1:3000/api/workflow -H "Content-Type: application/js
 ```
 
 - `agente` é o nome em `agents/<nome>.md`. `GET /api/workflow` lista tarefas e agentes. Mesmo token e mesmos códigos de erro da API de contexto.
-- As tarefas ficam em `workflow/tarefas.json` (ou `BUSINESSOS_WORKFLOW_FILE`). Um agente só move as próprias tarefas.
+- As tarefas ficam na tabela `tarefas` do Supabase (do usuário `BUSINESSOS_API_USER_ID`). Um agente só move as próprias tarefas.
 
 ## Agentes e skills
 
@@ -146,7 +146,7 @@ curl -X POST http://127.0.0.1:3000/api/workflow -H "Content-Type: application/js
 |---|---|---|---|
 | `tese-de-valor` ([agents/tese-de-valor.md](agents/tese-de-valor.md)) | Estrategista de posicionamento | `founder/objetivo`, `direcao/mapa-de-mercado`, `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor` | `direcao/tese-de-valor` |
 | `fluxo-de-caixa` ([agents/fluxo-de-caixa.md](agents/fluxo-de-caixa.md)) | Analista de caixa | `founder/estilo-de-vida`, `validacao/fluxo-de-caixa`, `caixa/fluxo-de-caixa`, `caixa/erp` | `validacao/fluxo-de-caixa`, `caixa/fluxo-de-caixa` |
-| `resumo` ([agents/resumo.md](agents/resumo.md)) | Resumo do negócio: visão geral, contradições e próxima ação | as 12 páginas | nenhuma (só lê) |
+| `resumo` ([agents/resumo.md](agents/resumo.md)) | Resumo do negócio: visão geral, contradições e próxima ação | as 13 páginas | nenhuma (só lê) |
 | `founder` ([agents/founder.md](agents/founder.md)) | Mentora da fundadora | `founder/objetivo`, `founder/estilo-de-vida`, `caixa/fluxo-de-caixa` | `founder/objetivo`, `founder/estilo-de-vida` |
 | `mapa-de-mercado` ([agents/mapa-de-mercado.md](agents/mapa-de-mercado.md)) | Mapeador de mercado | `founder/objetivo`, `founder/estilo-de-vida`, `direcao/mapa-de-mercado` | `direcao/mapa-de-mercado` |
 | `ima-de-problemas` ([agents/ima-de-problemas.md](agents/ima-de-problemas.md)) | Caçador de problemas | `founder/objetivo`, `direcao/mapa-de-mercado`, `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal` | `direcao/ima-de-problemas` |
@@ -154,13 +154,13 @@ curl -X POST http://127.0.0.1:3000/api/workflow -H "Content-Type: application/js
 | `oferta` ([agents/oferta.md](agents/oferta.md)) | Desenhista de oferta | `founder/objetivo`, `founder/estilo-de-vida`, `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor`, `direcao/oferta`, `validacao/oferta`, `validacao/fluxo-de-caixa` | `direcao/oferta` |
 | `validacao` ([agents/validacao.md](agents/validacao.md)) | Validador (testes e primeiros clientes) | `direcao/tese-de-valor`, `direcao/oferta`, `validacao/oferta`, `validacao/primeiros-clientes`, `validacao/fluxo-de-caixa`, `founder/objetivo` | `validacao/oferta`, `validacao/primeiros-clientes` |
 | `erp` ([agents/erp.md](agents/erp.md)) | Operações e ERP | `caixa/erp`, `caixa/fluxo-de-caixa`, `founder/estilo-de-vida`, `direcao/oferta` | `caixa/erp` |
-| `revisor-de-contexto` ([agents/revisor-de-contexto.md](agents/revisor-de-contexto.md)) | Revisor de qualidade e coerência do contexto | as 12 páginas | nenhuma (só lê) |
+| `revisor-de-contexto` ([agents/revisor-de-contexto.md](agents/revisor-de-contexto.md)) | Revisor de qualidade e coerência do contexto | as 13 páginas | nenhuma (só lê) |
 | `prospeccao-de-leads` ([agents/prospeccao-de-leads.md](agents/prospeccao-de-leads.md)) | Prospector de leads | `direcao/perfil-de-cliente-ideal`, `direcao/tese-de-valor`, `validacao/leads` | `validacao/leads` |
 | `assistente-de-arranque` ([agents/assistente-de-arranque.md](agents/assistente-de-arranque.md)) | Distribui um texto livre nos primeiros campos | `founder/*` e `direcao/*` (7 páginas) | as mesmas 7 páginas |
 
 | Skill | Para que serve |
 |---|---|
-| `contexto-businessos` ([skills/contexto-businessos/SKILL.md](skills/contexto-businessos/SKILL.md)) | Ler e escrever o contexto do negócio pela API ou pelos arquivos. |
+| `contexto-businessos` ([skills/contexto-businessos/SKILL.md](skills/contexto-businessos/SKILL.md)) | Ler e escrever o contexto do negócio pela API. |
 
 <!-- BEGIN:nextjs-agent-rules -->
 

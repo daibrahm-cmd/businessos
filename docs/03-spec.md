@@ -1,6 +1,6 @@
 # BusinessOS — Spec técnica (contrato de implementação)
 
-> **Status:** v1.0 · 2026-11-08 · Fase 1 (local, arquivos `.md`, sem banco, sem auth).
+> **Status:** v1.2 · 2026-11-10 · armazenamento no Supabase (Postgres + RLS, Auth, Storage; [ADR 0001](./decisions/0001-banco-de-dados-supabase-em-vez-de-markdown.md)). **v1.2:** a persistência deixou de ser Markdown/arquivos; §1, §2, §5, §6, §10 e §11 foram atualizadas, e `content/*.md` virou exportação/backup e fonte da migração. As seções sobre `FileSystemContentRepository` (§5.2) descrevem o modo `BUSINESSOS_STORAGE=fs`, mantido para testes e para a migração. Antes: v1.1, Fase 1 (local, arquivos `.md`, sem banco, sem auth). **v1.1:** 13 páginas (entra `validacao/leads`), §3.7 regenerada dos schemas reais, personas de cliente, relatório de leitura com gaveta, novas rotas (passo a passo, briefing, oportunidades, workflow, agentes), `/api/workflow`, design real (IBM Plex Mono, Carvão e Verde). Onde esta spec e o código divergirem, **o código é a fonte da verdade** para schemas de página (`src/lib/content/schemas/paginas/*.ts`) e para tokens (`src/app/globals.css`).
 > **Fontes:** decisões do orquestrador (fonte única — esta spec detalha, não muda), `docs/01-briefing.md`, `docs/02-prd.md`.
 > **Leitores:** agentes implementadores das Ondas 2–4. Onde houver código nesta spec, ele é **normativo**: copie nomes, tipos, chaves e mensagens exatamente.
 
@@ -24,7 +24,7 @@ Convenções de linguagem desta spec:
 8. [Componentes](#8-componentes)
 9. [Design tokens](#9-design-tokens)
 10. [Agentes e skills](#10-agentes-e-skills)
-11. [Supabase (futuro)](#11-supabase-futuro)
+11. [Supabase (armazenamento atual)](#11-supabase-armazenamento-atual)
 12. [Testes e qualidade](#12-testes-e-qualidade)
 13. [Plano de implementação em ondas](#13-plano-de-implementação-em-ondas)
 14. [Decisões tomadas nesta spec](#14-decisões-tomadas-nesta-spec)
@@ -47,12 +47,12 @@ flowchart LR
     RH["Route Handlers<br/>src/app/api/context/**"]
     SVC["Serviço de conteúdo<br/>src/lib/content/servico.ts<br/>trava por id + merge + validação zod"]
     IFACE[["ContentRepository<br/>(interface)"]]
-    FSR["FileSystemContentRepository<br/>(Fase 1)"]
-    SBR["SupabaseContentRepository<br/>(Fase 3)"]
+    FSR["FileSystemContentRepository<br/>(BUSINESSOS_STORAGE=fs)"]
+    SBR["SupabaseContentRepository<br/>(padrão: supabase)"]
   end
 
-  Files[("content/&lt;secao&gt;/&lt;pagina&gt;.md")]
-  DB[("Supabase<br/>documents + document_versions")]
+  Files[("content/&lt;secao&gt;/&lt;pagina&gt;.md<br/>(backup e seed)")]
+  DB[("Supabase<br/>documentos, oportunidades, tarefas,<br/>arquivos + bucket Storage")]
   Agents["Agentes de IA / skills<br/>(curl, Claude Code, scripts)"]
 
   CC -- "submit (patch)" --> SA
@@ -60,21 +60,20 @@ flowchart LR
   SA -- "atualizar" --> SVC
   Agents -- "HTTP JSON ou ?format=md" --> RH
   RH --> SVC
-  Agents -. "edição direta do arquivo<br/>(validar com npm run content:validate)" .-> Files
   SVC --> IFACE
-  IFACE --> FSR --> Files
-  IFACE -. "futuro" .-> SBR -.-> DB
+  IFACE --> SBR --> DB
+  IFACE -. "modo fs" .-> FSR -.-> Files
 ```
 
 ### 1.2 Regras de arquitetura
 
-1. **Um único caminho de escrita.** Toda escrita (UI ou API) passa por `atualizarDocumento()` em `src/lib/content/servico.ts`, que faz: trava por id → `repo.get` → `aplicarPatch` (merge) → validação zod da página → `repo.save`. Ninguém chama `repo.save` diretamente fora do serviço (exceto o script de seed).
+1. **Um único caminho de escrita.** Toda escrita (UI ou API) passa por `atualizarDocumento()` em `src/lib/content/servico.ts`, que faz: trava por id → `repo.get` → `aplicarPatch` (merge) → validação zod da página → `repo.save`. Ninguém chama `repo.save` diretamente fora do serviço (exceto os scripts de seed e de migração).
 2. **Um único ponto de troca de armazenamento.** UI, actions e API obtêm o repositório **somente** por `getContentRepository()` (`src/lib/content/repository.ts`). Nenhum arquivo fora de `src/lib/content/` importa `fs-repository.ts`.
 3. **Componentes não conhecem persistência.** Nada em `src/components/**` importa `actions.ts`, `servico.ts` ou repositórios. Componentes recebem dados e callbacks por props (isso viabiliza Storybook). Quem liga actions aos componentes são as páginas em `src/app/(app)/**`.
 4. **Definição declarativa dirige tudo.** Formulários, schemas zod, templates de arquivo, exportação Markdown e cálculo de completude derivam de `PageDefinition` (`src/lib/content/schemas/`). Não existe formulário escrito à mão por página.
 5. **Navegação é fonte única** (`src/lib/content/navigation.ts`): ids válidos, títulos, ordem, ícones e descrições das páginas saem dali.
 6. **Runtime Node.js** em todas as rotas que tocam conteúdo (o padrão do App Router). Nada de Edge runtime.
-7. **Renderização dinâmica**: as páginas leem arquivos a cada requisição (o conteúdo muda por fora — agentes). Não habilitar `cacheComponents`/PPR na Fase 1.
+7. **Renderização dinâmica**: as páginas leem o banco a cada requisição (o conteúdo muda por fora — agentes — e depende do usuário logado). Não habilitar `cacheComponents`/PPR.
 
 ### 1.3 Fluxos principais
 
@@ -99,16 +98,16 @@ BusinessOS/
 ├── tsconfig.json                               S   alias "@/*" → "./src/*"
 ├── eslint.config.mjs                           S
 ├── postcss.config.mjs                          S
-├── components.json                             S   shadcn (style new-york, baseColor neutral, cssVariables true)
+├── components.json                             S   shadcn (style radix-nova, baseColor neutral, cssVariables true)
 ├── vitest.config.mts                           2A  projeto "unit" (ambiente node) — ver §12.1
 ├── .env.example                                3B  variáveis da §6.6
 ├── .storybook/
 │   ├── main.ts                                 S   framework @storybook/nextjs-vite; stories: src/**/*.stories.tsx
-│   └── preview.tsx                             2B  importa globals.css, decorator de tema, Inter
+│   └── preview.tsx                             2B  importa globals.css, decorator de tema, IBM Plex Mono + Cormorant
 ├── docs/
 │   ├── 01-briefing.md · 02-prd.md · 03-spec.md
 │   └── assets/                                 PNG de referência do menu
-├── content/                                    2A  gerado por `npm run content:seed` e versionado no git
+├── content/                                    2A  conteúdo inicial em .md: fonte do seed/migração e backup (o conteúdo vivo está no Supabase)
 │   ├── founder/objetivo.md
 │   ├── founder/estilo-de-vida.md
 │   ├── direcao/mapa-de-mercado.md
@@ -117,21 +116,26 @@ BusinessOS/
 │   ├── direcao/tese-de-valor.md
 │   ├── direcao/oferta.md
 │   ├── validacao/oferta.md
+│   ├── validacao/leads.md
 │   ├── validacao/primeiros-clientes.md
 │   ├── validacao/fluxo-de-caixa.md
 │   ├── caixa/fluxo-de-caixa.md
 │   └── caixa/erp.md
-├── agents/
-│   ├── tese-de-valor.md                         2C
-│   └── fluxo-de-caixa.md                   2C
+├── agents/                                     13 agentes: assistente-de-arranque, erp, fluxo-de-caixa, founder, ima-de-problemas,
+│                                               mapa-de-mercado, oferta, perfil-de-cliente-ideal, prospeccao-de-leads, resumo,
+│                                               revisor-de-contexto, tese-de-valor, validacao
+├── oportunidades/oportunidades.json            LEGADO: funil de leads antes do Supabase; só fonte da migração (agora tabela `oportunidades`)
+├── workflow/tarefas.json                       LEGADO: tarefas antes do Supabase; só fonte da migração (agora tabela `tarefas`)
+├── supabase/                                   migrations SQL (tabelas, RLS, trigger de perfis, bucket e policies de Storage)
 ├── skills/
 │   └── contexto-businessos/SKILL.md            2C
 ├── scripts/
 │   ├── seed-conteudo.ts                        2A  cria arquivos ausentes a partir do template (nunca sobrescreve)
 │   └── validar-conteudo.ts                     2A  valida content/ + agents/ + skills/ (sai com código 1 se inválido)
+│   (também: admin:criar e db:migrar-conteudo, ver §11.5)
 └── src/
     ├── app/
-    │   ├── layout.tsx                          S→2B  <html lang="pt-BR">, Inter, ThemeProvider, Toaster
+    │   ├── layout.tsx                          S→2B  <html lang="pt-BR">, IBM Plex Mono + Cormorant, ThemeProvider, Toaster
     │   ├── globals.css                         S→2B  tokens da §9
     │   ├── not-found.tsx                       3A  404 global (URLs fora do grupo (app))
     │   ├── (app)/
@@ -140,12 +144,20 @@ BusinessOS/
     │   │   ├── not-found.tsx                   3A  404 dentro do shell
     │   │   ├── error.tsx                       3A  erro inesperado dentro do shell ("use client")
     │   │   ├── [secao]/page.tsx                3A  índice da seção
+    │   │   ├── comecar/page.tsx                    Passo a passo (onboarding, uma pergunta por vez)
+    │   │   ├── briefing/page.tsx                   Briefing: análise das respostas pela IA (ProvedorIA)
+    │   │   ├── oportunidades/                      Funil Kanban dos leads (page, quadro-oportunidades, actions)
+    │   │   ├── workflow/                           Kanban das tarefas dos agentes (page, quadro, actions, atualizar-auto)
+    │   │   ├── agentes/                            Lista de agentes e modal de edição (page, lista-agentes)
+    │   │   ├── _componentes/painel-erro-conteudo.tsx  Painel de erro de conteúdo compartilhado
     │   │   └── [secao]/[pagina]/
     │   │       ├── page.tsx                    3A  página editável
     │   │       └── loading.tsx                 3A  skeleton
-    │   └── api/context/
-    │       ├── route.ts                        3B  GET (lista; ?format=md)
-    │       └── [secao]/[pagina]/route.ts       3B  GET | PUT
+    │   └── api/
+    │       ├── context/
+    │       │   ├── route.ts                    3B  GET (lista; ?format=md)
+    │       │   └── [secao]/[pagina]/route.ts   3B  GET | PUT
+    │       └── workflow/route.ts               GET (tarefas + agentes) | POST (cria/atualiza tarefa) — §6.7
     ├── components/
     │   ├── ui/                                 S/2B  shadcn (gerados pelo CLI; não editar à mão salvo §9)
     │   ├── theme-provider.tsx                  2B  wrapper de next-themes
@@ -169,6 +181,20 @@ BusinessOS/
     │   │   ├── collection-summary.tsx          2B
     │   │   ├── section-card.tsx (+ .stories)   2B
     │   │   └── page-card.tsx (+ .stories)      2B
+    │   ├── relatorio/                          Relatório de leitura da página (stories em BusinessOS/Relatório)
+    │   │   ├── pagina-relatorio.tsx            Relatório + botões Aprovar e Editar (editor completo em modal)
+    │   │   ├── relatorio-pagina.tsx (+ .stories) Indicadores, campos por grupo, coleções (CartaoLista, CartaoPersona), notas
+    │   │   ├── cartao-persona.stories.tsx      Story do CartaoPersona (exportado por relatorio-pagina.tsx)
+    │   │   ├── gaveta-item.tsx (+ .stories)    Gaveta lateral de um item (leitura e edição)
+    │   │   ├── celula-item.tsx (+ .stories)    Valor curto de campo: selo, barra, link, data, texto
+    │   │   ├── cabecalho-pagina.tsx            Etiqueta, título (Cormorant), descrição e ações
+    │   │   ├── notas-estruturadas.tsx          Notas com hierarquia (entradas, tabelas, selos hipótese/fato/lacuna)
+    │   │   ├── panorama-paginas.tsx            Completude média e contagem por status (Início e índices)
+    │   │   ├── pecas.tsx                       Etiqueta, Bloco, Anel, Indicador, CARD, ROTULO
+    │   │   └── nao-preenchido.tsx              Cartão tracejado de campo vazio
+    │   ├── onboarding/passo-a-passo.tsx        Uma pergunta por vez (Founder e Direção) + revisão
+    │   ├── kanban/arrastar.tsx                 Arrastar e soltar (@dnd-kit/core): mouse, toque (200 ms) e teclado
+    │   ├── agentes/avatar-agente.tsx           Avatar SVG de cada agente
     │   ├── editor/
     │   │   ├── page-editor.tsx (+ .stories)    2B  estado de rascunho da página + SaveBar + conflito
     │   │   ├── markdown-notes.tsx (+ .stories) 2B
@@ -181,6 +207,10 @@ BusinessOS/
     └── lib/
         ├── utils.ts                            S   cn() do shadcn
         ├── format.ts                           2A  moeda/número/data pt-BR (§3.9)
+        ├── briefing/briefing.ts                Leitura/gravação do briefing e completude geral
+        ├── ia/                                 IA: provedor.ts (contrato ProvedorIA), claude-api.ts (modo api, fetch direto), claude-cli.ts (modo cli, `claude -p`), actions.ts, pagina.ts; só servidor
+        ├── oportunidades/                      tipos.ts (estágios do funil), repositorio.ts (JSON atômico)
+        ├── workflow/                           tipos.ts, repositorio.ts (JSON atômico, máx. 200), agentes.ts (lê agents/*.md)
         ├── markdown/render-simples.tsx         2B  renderizador mínimo e seguro de Markdown (§8.4)
         └── content/
             ├── navigation.ts                   2.0 fonte única da navegação (§4)
@@ -200,10 +230,11 @@ BusinessOS/
             │   │   ├── direcao-tese-de-valor.ts
             │   │   ├── direcao-oferta.ts
             │   │   ├── validacao-oferta.ts
+            │   │   ├── validacao-leads.ts
             │   │   ├── validacao-primeiros-clientes.ts
             │   │   ├── validacao-fluxo-de-caixa.ts
             │   │   ├── caixa-fluxo-de-caixa.ts
-            │   │   └── caixa-erp.ts                2A  (12 arquivos; um export default PageDefinition cada)
+            │   │   └── caixa-erp.ts                2A  (13 arquivos; um export default PageDefinition cada)
             │   └── index.ts                    2A  DEFINICOES: Record<DocId, PageDefinition>; obterDefinicao()
             ├── serializacao.ts                 2A  parse/stringify .md, normalização, ordem de chaves
             ├── merge.ts                        2A  aplicarPatch() puro
@@ -228,7 +259,7 @@ Testes ficam ao lado do código: `*.test.ts` (ex.: `src/lib/content/merge.test.t
 
 ### 3.1 Arquivo e front matter comum
 
-Arquivo: `content/<secao>/<pagina>.md`, UTF-8, quebra de linha `\n`, termina com `\n`. Front matter YAML entre `---`. Corpo Markdown = notas livres.
+Formato de **troca** (exportação/backup, seed e modo `fs`): arquivo `content/<secao>/<pagina>.md`. No Supabase, as mesmas chaves viram colunas da tabela `documentos` (§11.1) e o corpo é a coluna `corpo`. Arquivo: UTF-8, quebra de linha `\n`, termina com `\n`. Front matter YAML entre `---`. Corpo Markdown = notas livres.
 
 Chaves do front matter, **nesta ordem canônica** ao gravar:
 
@@ -239,7 +270,7 @@ Chaves do front matter, **nesta ordem canônica** ao gravar:
 | `pagina` | `string` | slug kebab-case | sistema |
 | `titulo` | `string` | 1–120 caracteres; vem da navegação | sistema |
 | `descricao` | `string` | ≤ 300 caracteres; vem da navegação | sistema |
-| `estagio` | `"para-quem-esta-comecando"` | único valor na Fase 1 | sistema |
+| `estagio` | `"para-quem-esta-comecando"` | único valor por ora | sistema |
 | `status` | `"vazio" \| "rascunho" \| "em-validacao" \| "validado"` | ver regra automática em §5.4 | humano/agente |
 | `atualizado_em` | `string` ISO 8601 UTC | ex. `2026-11-08T14:32:10.000Z`; gravado entre aspas | sistema |
 | `atualizado_por` | `"humano" \| "agente:<nome>"` | `<nome>` = `^[a-z0-9][a-z0-9-]{0,62}$` | sistema (a partir do autor) |
@@ -498,7 +529,7 @@ export interface CollectionDef {
   /** Rótulo de um item (singular), ex.: "Cliente". Usado em "Adicionar cliente". */
   rotuloItem: string;
   descricao?: string;
-  /** Campos de cada item (4–10). */
+  /** Campos de cada item (4–12). */
   campos: readonly FieldDef[];
   /** Campo exibido como título do card (deve ser obrigatorio: true). */
   campoTitulo: string;
@@ -509,8 +540,27 @@ export interface CollectionDef {
   /** Ordenação de exibição (não altera a ordem gravada). Padrão: ordem do arquivo. */
   ordenarPor?: { campo: string; direcao: "asc" | "desc" };
   resumos?: readonly ResumoDef[];
+  /**
+   * Exibe os itens como cards em lista (um por linha, sem tabela) e abre uma gaveta lateral ao clicar.
+   * Sem isto, os itens aparecem em grade de cards.
+   */
+  lista?: ListaCards;
   /** Padrão: 500. */
   maxItens?: number;
+}
+
+/** Cards em lista: o que aparece em cada card além do título, do subtítulo e do destaque. */
+export interface ListaCards {
+  /** Campo em texto pequeno logo abaixo do título (ex.: cargo). */
+  apoioTitulo?: string;
+  /** Campo de texto corrido, limitado a 2 linhas no card (ex.: a nota do lead). */
+  texto?: string;
+  /** Campos curtos mostrados lado a lado no rodapé do card (selo, barra de pontos, data). */
+  meta?: readonly string[];
+  /** Campo lista-texto exibido como chips no card (ex.: gatilhos da persona). */
+  chips?: string;
+  /** "persona": card com número, título grande, subtítulo em destaque, apoio em cinza, texto com filete e chips. */
+  variante?: "persona";
 }
 
 export interface PageDefinition {
@@ -522,7 +572,7 @@ export interface PageDefinition {
   descricao: string;
   /** Valor inicial de `relacionados` no template. */
   relacionadosPadrao: readonly DocId[];
-  /** 4–8 campos de valor único. */
+  /** 4–30 campos de valor único (agrupáveis por `grupo`). */
   campos: readonly FieldDef[];
   colecoes?: readonly CollectionDef[];
   /** Placeholder do editor de notas (corpo). */
@@ -731,11 +781,11 @@ export default definirPagina("validacao/primeiros-clientes", {
 `schemas/index.ts`:
 
 ```ts
-export const DEFINICOES: Readonly<Record<DocId, PageDefinition>>; // as 12, indexadas por id
+export const DEFINICOES: Readonly<Record<DocId, PageDefinition>>; // as 13, indexadas por id
 export function obterDefinicao(id: DocId): PageDefinition;         // nunca undefined para DocId válido
 ```
 
-Invariantes verificadas por teste (§12): 12 definições, uma por id da navegação; 4–8 `campos` por página; 4–10 campos por coleção; nomes únicos e snake_case; nenhum campo chamado `id`/`colecao`; `selecao` com ≥ 2 opções de valores únicos kebab-case; `campoTitulo` existe e é `obrigatorio`; `campoDestaque` é `selecao`; campos citados em `resumos`/`ordenarPor` existem e têm o tipo certo; `relacionadosPadrao` sem o próprio id.
+Invariantes verificadas por teste (§12): 13 definições, uma por id da navegação; 4–30 `campos` por página; 4–12 campos por coleção; nomes únicos e snake_case; nenhum campo chamado `id`/`colecao`; `selecao` com ≥ 2 opções de valores únicos kebab-case; `campoTitulo` existe e é `obrigatorio`; `campoDestaque` é `selecao`; campos citados em `resumos`/`ordenarPor` existem e têm o tipo certo; `relacionadosPadrao` sem o próprio id.
 
 ### 3.6 Opções reutilizadas
 
@@ -745,23 +795,36 @@ Para evitar divergência, estas listas são constantes em `schemas/definir-pagin
 - `OPCOES_FREQUENCIA` = `diaria` "Diária", `semanal` "Semanal", `mensal` "Mensal", `eventual` "Eventual".
 - `OPCOES_TIPO_LANCAMENTO` = `entrada` "Entrada", `saida` "Saída".
 
-### 3.7 As 12 páginas
+### 3.7 As 13 páginas
 
-Colunas: **nome** (chave), **rótulo** (UI), **tipo**, **ajuda / placeholder** (ajuda; *placeholder em itálico*). `*` = obrigatório (só itens). Restrições extras entre colchetes.
+Tabelas **geradas a partir dos schemas reais** (`src/lib/content/schemas/paginas/*.ts`), que são a fonte da verdade. Colunas: **nome** (chave), **rótulo** (UI), **tipo**, **grupo** (seção do relatório, só nas páginas que agrupam campos) e **ajuda / placeholder** (ajuda; *placeholder em itálico*). `*` = obrigatório (só itens). Restrições extras entre colchetes. `validacao/leads` é a 3.7.13 (não renumerada, para manter as referências anteriores).
 
 #### 3.7.1 `founder/objetivo` — Objetivo
 
-Descrição: *Por que este negócio existe para você e o que precisa ser verdade em 12 meses.* · Relacionados padrão: `founder/estilo-de-vida`, `direcao/tese-de-valor`.
+Descrição: *Por que este negócio existe para você e o que precisa ser verdade em 12 meses.* · Relacionados: `founder/estilo-de-vida`, `direcao/tese-de-valor`.
 
-| nome | rótulo | tipo | ajuda / placeholder |
-|---|---|---|---|
-| `objetivo_principal` | Objetivo principal | texto-longo | Em uma ou duas frases: o que você quer que este negócio realize. · *Ex.: Ter uma consultoria que me pague R$ 12 mil/mês trabalhando 30 h por semana.* |
-| `por_que_agora` | Por que agora | texto-longo | O que fez você começar agora e não daqui a um ano. |
-| `meta_12_meses` | Meta para 12 meses | texto-curto | Um resultado mensurável. · *Ex.: 25 clientes recorrentes* |
-| `renda_minima_mensal` | Renda mínima que você precisa | moeda [min 0] | Quanto o negócio precisa te pagar por mês para valer a pena. |
-| `data_de_decisao` | Data de decisão | data | Até quando você avalia se continua, ajusta ou para. |
-| `criterios_de_sucesso` | Critérios de sucesso | lista-texto | Sinais objetivos de que está dando certo (um por linha). |
-| `limites_inegociaveis` | Limites inegociáveis | lista-texto | O que você não aceita fazer para atingir o objetivo. |
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `objetivo_principal` | Objetivo principal | texto-longo | Visão | Em uma ou duas frases: o que você quer que este negócio realize. · *Ex.: Ter uma consultoria que me pague R$ 12 mil/mês trabalhando 30 h por semana.* |
+| `tipo_de_objetivo` | Que tipo de negócio você quer | selecao: `renda-extra` "Renda extra", `substituir-salario` "Substituir meu salário", `empresa-escalavel` "Empresa que escala", `autonomia` "Autonomia e liberdade", `impacto` "Impacto / propósito" | Visão | Escolha o que mais se aproxima. |
+| `visao_de_3_anos` | Onde você quer estar em 3 anos | texto-longo | Visão | Descreva um dia comum daqui a 3 anos, se tudo der certo. |
+| `o_que_voce_nao_quer` | O que você não quer virar | texto-longo | Visão | O oposto do sonho: o cenário que seria um fracasso para você, mesmo dando dinheiro. |
+| `por_que_agora` | Por que agora | texto-longo | Motivação | O que fez você começar agora e não daqui a um ano. |
+| `historia_pessoal` | O que te trouxe até aqui | texto-longo | Motivação | Experiências, trabalhos e momentos que levaram a esta ideia. |
+| `o_que_te_move` | O que te move de verdade | lista-texto | Motivação | Dinheiro, liberdade, reconhecimento, ajudar pessoas… seja honesta (um por linha). |
+| `quem_depende_de_voce` | Quem é afetado pela sua decisão | texto-curto | Motivação | · *Ex.: parceiro(a), 2 filhos, sócia* |
+| `compromisso` | Nível de compromisso | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Motivação | O quanto você está disposta a abrir mão por isso hoje. |
+| `meta_12_meses` | Meta para 12 meses | texto-curto | Metas e números | Um resultado mensurável. · *Ex.: 25 clientes recorrentes* |
+| `renda_minima_mensal` | Renda mínima que você precisa | moeda [min 0] | Metas e números | Quanto o negócio precisa te pagar por mês para valer a pena. |
+| `renda_desejada_mensal` | Renda que você quer | moeda [min 0] | Metas e números | O número que te deixaria realizada. |
+| `faturamento_necessario` | Faturamento mensal necessário | moeda [min 0] | Metas e números | Considerando impostos e custos, quanto precisa entrar para chegar na renda desejada. |
+| `prazo_para_primeira_venda` | Prazo para a primeira venda | numero [inteiro, min 0, unidade "dias"] | Metas e números | Em quantos dias você quer ter o primeiro cliente pagante. |
+| `criterios_de_sucesso` | Critérios de sucesso | lista-texto | Metas e números | Sinais objetivos de que está dando certo (um por linha). |
+| `data_de_decisao` | Data de decisão | data | Decisão e limites | Até quando você avalia se continua, ajusta ou para. |
+| `criterio_para_parar` | O que te faria parar | texto-longo | Decisão e limites | Resultado ou situação que, se acontecer, você encerra ou muda de rumo. |
+| `maiores_medos` | Maiores medos | lista-texto | Decisão e limites | O que mais te preocupa nesta jornada. |
+| `maior_risco` | Maior risco do negócio | texto-curto | Decisão e limites | · *Ex.: não conseguir clientes antes do dinheiro acabar* |
+| `limites_inegociaveis` | Limites inegociáveis | lista-texto | Decisão e limites | O que você não aceita fazer para atingir o objetivo. |
 
 Coleções: nenhuma.
 
@@ -769,15 +832,28 @@ Coleções: nenhuma.
 
 Descrição: *As restrições e preferências pessoais que o negócio precisa respeitar.* · Relacionados: `founder/objetivo`, `caixa/fluxo-de-caixa`.
 
-| nome | rótulo | tipo | ajuda / placeholder |
-|---|---|---|---|
-| `horas_por_semana` | Horas por semana | numero [inteiro, min 0, max 168, unidade "h"] | Tempo real que você pode dedicar ao negócio. · *Ex.: 25* |
-| `dedicacao` | Dedicação | selecao: `integral` "Tempo integral", `parcial` "Tempo parcial", `paralela` "Em paralelo a um emprego" | — |
-| `retirada_desejada` | Retirada mensal desejada | moeda [min 0] | Quanto você quer tirar do negócio por mês quando ele estiver de pé. |
-| `folego_em_meses` | Fôlego financeiro | numero [min 0, unidade "meses"] | Quantos meses você se sustenta sem renda do negócio. |
-| `modelo_de_trabalho` | Modelo de trabalho | selecao: `remoto` "Remoto", `presencial` "Presencial", `hibrido` "Híbrido" | — |
-| `rotina_ideal` | Rotina ideal | texto-longo | Como é uma semana boa de trabalho para você. |
-| `inegociaveis_pessoais` | Inegociáveis da vida pessoal | lista-texto | · *Ex.: buscar as crianças na escola às 17h* |
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `horas_por_semana` | Horas por semana | numero [inteiro, min 0, max 168, unidade "h"] | Tempo | Tempo real que você pode dedicar ao negócio. · *Ex.: 25* |
+| `dedicacao` | Dedicação | selecao: `integral` "Tempo integral", `parcial` "Tempo parcial", `paralela` "Em paralelo a um emprego" | Tempo | — |
+| `melhores_horarios` | Seus melhores horários | texto-curto | Tempo | · *Ex.: manhãs de segunda a sexta, sábado até meio-dia* |
+| `rotina_ideal` | Rotina ideal | texto-longo | Tempo | Como é uma semana boa de trabalho para você. |
+| `viagens_e_ausencias` | Viagens e períodos fora | texto-curto | Tempo | · *Ex.: 3 semanas de férias por ano, viagem em julho* |
+| `retirada_desejada` | Retirada mensal desejada | moeda [min 0] | Dinheiro pessoal | Quanto você quer tirar do negócio por mês quando ele estiver de pé. |
+| `custo_de_vida_mensal` | Custo de vida mensal | moeda [min 0] | Dinheiro pessoal | Quanto você gasta por mês para viver hoje. |
+| `folego_em_meses` | Fôlego financeiro | numero [min 0, unidade "meses"] | Dinheiro pessoal | Quantos meses você se sustenta sem renda do negócio. |
+| `valor_para_investir` | Quanto pode investir | moeda [min 0] | Dinheiro pessoal | Dinheiro que você aceita perder para testar a ideia. |
+| `outras_fontes_de_renda` | Outras fontes de renda | texto-curto | Dinheiro pessoal | · *Ex.: salário do emprego atual, aluguel, renda do parceiro* |
+| `dividas` | Dívidas e compromissos fixos | texto-curto | Dinheiro pessoal | · *Ex.: financiamento de R$ 1.800/mês* |
+| `modelo_de_trabalho` | Modelo de trabalho | selecao: `remoto` "Remoto", `presencial` "Presencial", `hibrido` "Híbrido" | Jeito de trabalhar | — |
+| `trabalha_sozinha` | Trabalha sozinha ou com sócios | selecao: `sozinha` "Sozinha", `com-socio` "Com sócio(a)", `com-equipe` "Com equipe" | Jeito de trabalhar | — |
+| `conforto_com_vendas` | Conforto com vender | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Jeito de trabalhar | O quanto você gosta de abordar e fechar com clientes. |
+| `conforto_com_aparecer` | Conforto com aparecer | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Jeito de trabalhar | Gravar vídeos, postar, falar em público. |
+| `energia_gera` | O que te dá energia | lista-texto | Jeito de trabalhar | Tipos de tarefa que você faria o dia todo. |
+| `energia_drena` | O que te drena | lista-texto | Jeito de trabalhar | Tarefas que você adiaria ou delegaria (a Imã de Problemas e a Oferta devem evitá-las). |
+| `apoio_de_quem_convive` | Apoio de quem convive com você | selecao: `total` "Total", `parcial` "Parcial", `nenhum` "Nenhum ainda" | Vida pessoal | — |
+| `saude_e_energia` | Saúde e energia | texto-curto | Vida pessoal | Algo que limita sua carga de trabalho? · *Ex.: preciso dormir 8h; enxaqueca com tela à noite* |
+| `inegociaveis_pessoais` | Inegociáveis da vida pessoal | lista-texto | Vida pessoal | · *Ex.: buscar as crianças na escola às 17h* |
 
 Coleções: nenhuma.
 
@@ -785,15 +861,24 @@ Coleções: nenhuma.
 
 Descrição: *O terreno onde você vai jogar: segmentos, concorrentes e espaços livres.* · Relacionados: `direcao/ima-de-problemas`, `direcao/perfil-de-cliente-ideal`.
 
-| nome | rótulo | tipo | ajuda / placeholder |
-|---|---|---|---|
-| `mercado` | Mercado | texto-curto | · *Ex.: organização financeira para MEIs prestadores de serviço* |
-| `regiao` | Região de atuação | texto-curto | · *Ex.: Brasil, online* |
-| `tamanho_estimado` | Tamanho estimado | numero [inteiro, min 0, unidade "clientes"] | Quantos clientes potenciais existem no recorte escolhido. |
-| `ticket_medio_mercado` | Ticket médio do mercado | moeda [min 0] | Quanto se paga, em média, por soluções parecidas. |
-| `tendencias` | Tendências | lista-texto | Mudanças que favorecem ou ameaçam o mercado. |
-| `alternativas_atuais` | Como o cliente resolve hoje | lista-texto | Planilha, contador, app, "não resolve"… |
-| `espaco_livre` | Espaço livre | texto-longo | A lacuna que ninguém atende bem e que você pode ocupar. |
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `mercado` | Mercado | texto-curto | Recorte do mercado | · *Ex.: organização financeira para MEIs prestadores de serviço* |
+| `regiao` | Região de atuação | texto-curto | Recorte do mercado | · *Ex.: Brasil, online* |
+| `porte_alvo` | Porte das empresas-alvo | texto-curto | Recorte do mercado | Faixa de funcionários (ou faturamento) das empresas que você quer atender, separando principal e secundária. · *Ex.: principal: 100 a 500 funcionários; secundária: 30 a 99* |
+| `por_que_este_mercado` | Por que este mercado | texto-longo | Recorte do mercado | O que te conecta a ele: experiência, rede de contatos, acesso, interesse. |
+| `conhecimento_do_mercado` | O quanto você conhece este mercado | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Recorte do mercado | — |
+| `rede_de_contatos` | Quem você já conhece nele | lista-texto | Recorte do mercado | Pessoas ou comunidades que podem te dar acesso a clientes (um por linha). |
+| `tamanho_estimado` | Tamanho estimado | numero [inteiro, min 0, unidade "clientes"] | Tamanho e dinheiro | Quantos clientes potenciais existem no recorte escolhido. |
+| `fonte_do_tamanho` | De onde veio esse número | texto-curto | Tamanho e dinheiro | · *Ex.: IBGE, Sebrae, LinkedIn Sales Navigator, chute* |
+| `ticket_medio_mercado` | Ticket médio do mercado | moeda [min 0] | Tamanho e dinheiro | Quanto se paga, em média, por soluções parecidas. |
+| `clientes_necessarios` | Clientes necessários para a meta | numero [inteiro, min 0, unidade "clientes"] | Tamanho e dinheiro | Quantos você precisa fechar para bater a renda desejada. |
+| `tendencias` | Tendências | lista-texto | Dinâmica do mercado | Mudanças que favorecem ou ameaçam o mercado. |
+| `regulacao_e_barreiras` | Regras e barreiras de entrada | lista-texto | Dinâmica do mercado | Licenças, regulação, investimento inicial, exigências de confiança. |
+| `sazonalidade` | Sazonalidade | texto-curto | Dinâmica do mercado | · *Ex.: vende mais em janeiro e no fim do ano* |
+| `alternativas_atuais` | Como o cliente resolve hoje | lista-texto | Dinâmica do mercado | Planilha, contador, app, "não resolve"… |
+| `espaco_livre` | Espaço livre | texto-longo | Dinâmica do mercado | A lacuna que ninguém atende bem e que você pode ocupar. |
+| `riscos_do_mercado` | Riscos do mercado | lista-texto | Dinâmica do mercado | O que pode fazer este mercado desaparecer ou encolher. |
 
 Coleção **`segmentos`** — rótulo "Segmentos", item "Segmento"; título `nome`, subtítulo `descricao`, destaque `atratividade`.
 
@@ -802,7 +887,7 @@ Coleção **`segmentos`** — rótulo "Segmentos", item "Segmento"; título `nom
 | `nome`* | Nome | texto-curto | · *Ex.: MEIs de beleza* |
 | `descricao` | Descrição | texto-longo | Quem está neste segmento. |
 | `tamanho` | Tamanho | numero [inteiro, min 0, unidade "clientes"] | — |
-| `atratividade` | Atratividade | selecao: `OPCOES_NIVEL` | Quanto vale a pena atender. |
+| `atratividade` | Atratividade | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Quanto vale a pena atender. |
 | `acesso` | Facilidade de acesso | selecao: `facil` "Fácil", `medio` "Médio", `dificil` "Difícil" | Quão fácil é chegar até eles. |
 
 Resumos: `contagem` "Segmentos mapeados".
@@ -816,28 +901,36 @@ Coleção **`concorrentes`** — rótulo "Concorrentes", item "Concorrente"; tí
 | `preco` | Preço | moeda [min 0] | Preço principal que cobram. |
 | `pontos_fortes` | Pontos fortes | lista-texto | — |
 | `pontos_fracos` | Pontos fracos | lista-texto | — |
-| `link` | Link | texto-curto | · *https://…* |
+| `link` | Link | texto-curto | · *Ex.: https://…* |
 
 #### 3.7.4 `direcao/ima-de-problemas` — Imã de Problemas
 
 Descrição: *Problemas reais, frequentes e caros que atraem clientes dispostos a pagar.* · Relacionados: `direcao/mapa-de-mercado`, `direcao/perfil-de-cliente-ideal`.
 
-| nome | rótulo | tipo | ajuda / placeholder |
-|---|---|---|---|
-| `problema_central` | Problema central | texto-longo | O problema que você escolheu resolver primeiro. |
-| `quem_sente` | Quem sente mais | texto-curto | · *Ex.: MEI que mistura conta pessoal e da empresa* |
-| `custo_mensal_do_problema` | Custo do problema por mês | moeda [min 0] | Quanto o problema custa ao cliente (dinheiro perdido, multas, tempo). |
-| `frequencia` | Frequência | selecao: `OPCOES_FREQUENCIA` | Com que frequência o problema aparece. |
-| `evidencias` | Evidências | lista-texto | Frases reais, posts, buscas, reclamações. |
-| `hipotese_de_solucao` | Hipótese de solução | texto-longo | Como você acha que resolve. |
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `problema_central` | Problema central | texto-longo | O problema | O problema que você escolheu resolver primeiro. |
+| `quem_sente` | Quem sente mais | texto-curto | O problema | · *Ex.: MEI que mistura conta pessoal e da empresa* |
+| `como_o_cliente_descreve` | Como o cliente descreve o problema | texto-longo | O problema | Nas palavras dele, não nas suas. Frases literais. |
+| `situacao_em_que_aparece` | Em que momento ele aparece | texto-longo | O problema | A cena: onde a pessoa está e o que acontece quando o problema surge. |
+| `o_que_ja_tentou` | O que o cliente já tentou | lista-texto | O problema | Soluções que não funcionaram e por quê. |
+| `custo_mensal_do_problema` | Custo do problema por mês | moeda [min 0] | Intensidade | Quanto o problema custa ao cliente (dinheiro perdido, multas, tempo). |
+| `frequencia` | Frequência | selecao: `diaria` "Diária", `semanal` "Semanal", `mensal` "Mensal", `eventual` "Eventual" | Intensidade | Com que frequência o problema aparece. |
+| `urgencia` | Urgência | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Intensidade | O quanto o cliente quer resolver já, e não "um dia". |
+| `consequencia_de_nao_resolver` | O que acontece se não resolver | texto-longo | Intensidade | — |
+| `ja_paga_para_resolver` | Já paga para resolver? | selecao: `sim` "Sim", `tenta-de-graca` "Só tenta de graça", `nao` "Não" | Intensidade | — |
+| `evidencias` | Evidências | lista-texto | Evidências e solução | Frases reais, posts, buscas, reclamações. |
+| `pessoas_ouvidas` | Quantas pessoas você ouviu | numero [inteiro, min 0, unidade "pessoas"] | Evidências e solução | — |
+| `hipotese_de_solucao` | Hipótese de solução | texto-longo | Evidências e solução | Como você acha que resolve. |
+| `por_que_voce_resolve` | Por que você é a pessoa certa | texto-longo | Evidências e solução | Sua ligação pessoal ou profissional com este problema. |
 
-Coleção **`problemas`** — rótulo "Problemas", item "Problema"; título `descricao`, subtítulo `fonte`, destaque `situacao`; ordenar por — (ordem do arquivo).
+Coleção **`problemas`** — rótulo "Problemas", item "Problema"; título `descricao`, subtítulo `fonte`, destaque `situacao`.
 
 | nome | rótulo | tipo | ajuda / placeholder |
 |---|---|---|---|
 | `descricao`* | Problema | texto-curto | · *Ex.: Não sabe quanto pode retirar por mês* |
 | `intensidade` | Intensidade | selecao: `baixa` "Baixa", `media` "Média", `alta` "Alta", `critica` "Crítica" | Quanto dói. |
-| `frequencia` | Frequência | selecao: `OPCOES_FREQUENCIA` | — |
+| `frequencia` | Frequência | selecao: `diaria` "Diária", `semanal` "Semanal", `mensal` "Mensal", `eventual` "Eventual" | — |
 | `disposicao_a_pagar` | Disposição a pagar | selecao: `nenhuma` "Nenhuma", `baixa` "Baixa", `media` "Média", `alta` "Alta" | — |
 | `situacao` | Situação | selecao: `hipotese` "Hipótese", `confirmado` "Confirmado", `descartado` "Descartado" | — |
 | `fonte` | Fonte | texto-curto | Onde você ouviu ou viu isso. |
@@ -849,53 +942,90 @@ Resumos: `contagem` "Problemas confirmados" (filtro `situacao = confirmado`).
 
 Descrição: *Quem mais sente o problema escolhido e como essa pessoa decide comprar.* · Relacionados: `direcao/ima-de-problemas`, `direcao/tese-de-valor`.
 
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `quem_e` | Quem é | texto-longo | Quem é | Descreva uma pessoa (ou empresa) específica, como se fosse real. |
+| `tipo_de_cliente` | Pessoa ou empresa | selecao: `pessoa` "Pessoa física (B2C)", `empresa` "Empresa (B2B)", `ambos` "Ambos" | Quem é | — |
+| `dados_demograficos` | Dados demográficos | lista-texto | Quem é | Idade, renda, profissão, região, tamanho da empresa. |
+| `cargo_ou_papel` | Cargo ou papel | texto-curto | Quem é | · *Ex.: dona do negócio, gerente financeiro* |
+| `rotina_do_cliente` | Um dia na vida dele(a) | texto-longo | Quem é | — |
+| `dores` | Dores | lista-texto | Dores e desejos | O que incomoda, custa caro ou tira o sono. |
+| `desejos` | Desejos | lista-texto | Dores e desejos | O resultado que ela quer, nas palavras dela. |
+| `o_que_ja_tentou` | O que já tentou | lista-texto | Dores e desejos | — |
+| `o_que_valoriza` | O que mais valoriza em uma solução | lista-texto | Dores e desejos | Preço, rapidez, confiança, atendimento, resultado garantido… |
+| `onde_esta` | Onde está | lista-texto | Como compra | Canais, comunidades, eventos e perfis que acompanha. |
+| `gatilhos_de_compra` | Gatilhos de compra | lista-texto | Como compra | Eventos que fazem a pessoa procurar uma solução agora. |
+| `quem_decide` | Quem decide a compra | texto-curto | Como compra | · *Ex.: a própria pessoa; o sócio financeiro* |
+| `tempo_de_decisao` | Tempo até decidir | texto-curto | Como compra | · *Ex.: no mesmo dia; 2 semanas* |
+| `objecoes` | Objeções | lista-texto | Como compra | Por que ela diria "não" ou "agora não". |
+| `quanto_paga_hoje` | Quanto paga hoje | moeda [min 0] | Como compra | Gasto mensal atual com alternativas ao seu produto. |
+| `quem_nao_e_cliente` | Quem NÃO é seu cliente | texto-longo | Como compra | Perfis parecidos que dão trabalho e não compram. |
+
+Coleção **`personas`** — rótulo "Personas", item "Persona"; título `nome`, subtítulo `arquetipo`.
+
+Perfis distintos de cliente ideal. Cada um com quem é, momento, contexto e gatilhos.
+
+Cards em lista (um por linha, abrem a gaveta lateral): variante `persona`; apoio `perfil`; texto `momento`; chips `gatilhos`.
+
 | nome | rótulo | tipo | ajuda / placeholder |
 |---|---|---|---|
-| `quem_e` | Quem é | texto-longo | Descreva uma pessoa (ou empresa) específica, como se fosse real. |
-| `dados_demograficos` | Dados demográficos | lista-texto | Idade, renda, profissão, região, tamanho da empresa. |
-| `dores` | Dores | lista-texto | O que incomoda, custa caro ou tira o sono. |
-| `desejos` | Desejos | lista-texto | O resultado que ela quer, nas palavras dela. |
-| `onde_esta` | Onde está | lista-texto | Canais, comunidades, eventos e perfis que acompanha. |
-| `gatilhos_de_compra` | Gatilhos de compra | lista-texto | Eventos que fazem a pessoa procurar uma solução agora. |
-| `objecoes` | Objeções | lista-texto | Por que ela diria "não" ou "agora não". |
-| `quanto_paga_hoje` | Quanto paga hoje | moeda [min 0] | Gasto mensal atual com alternativas ao seu produto. |
-
-Coleções: nenhuma. (Exemplo completo de arquivo em §3.8.1.)
+| `nome`* | Nome da persona | texto-curto | · *Ex.: O Reinventor* |
+| `arquetipo` | Em uma frase | texto-curto | O arquétipo entre parênteses. · *Ex.: profissional em transição* |
+| `perfil` | Perfil | texto-curto | Idade, formação, classe e região. · *Ex.: 28–45 anos, ensino superior, classe média urbana* |
+| `psicografia` | Psicografia | texto-longo | Como pensa, o que consome, o que admira, onde a identidade é forte ou fraca. |
+| `momento` | Momento | texto-longo | Em que ponto da vida ou do negócio ela está agora e o que quer a seguir. |
+| `contexto` | Contexto | texto-longo | A situação em volta: rotina, pressões, o que vê acontecer com os outros. |
+| `gatilhos` | Gatilhos | lista-texto | Eventos concretos que fazem essa persona agir agora. |
 
 #### 3.7.6 `direcao/tese-de-valor` — Tese de Valor
 
 Descrição: *A hipótese central: por que este cliente escolheria você em vez das alternativas.* · Relacionados: `direcao/perfil-de-cliente-ideal`, `direcao/ima-de-problemas`, `direcao/oferta`.
 
-| nome | rótulo | tipo | ajuda / placeholder |
-|---|---|---|---|
-| `proposta_de_valor` | Proposta de valor | texto-longo | · *Para [cliente] que [dor], [solução] entrega [resultado], diferente de [alternativa].* |
-| `resultado_prometido` | Resultado prometido | texto-curto | O resultado concreto que o cliente leva. |
-| `alternativa_substituida` | Alternativa que você substitui | texto-curto | O que o cliente deixa de usar ao escolher você. |
-| `diferenciais` | Diferenciais | lista-texto | — |
-| `vantagem_injusta` | Por que você | texto-longo | O que você tem que é difícil de copiar. |
-| `hipoteses_criticas` | Hipóteses críticas | lista-texto | O que precisa ser verdade para a tese se sustentar (vão para a Validação). |
-| `nivel_de_confianca` | Nível de confiança | selecao: `OPCOES_NIVEL` | — |
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `proposta_de_valor` | Proposta de valor | texto-longo | A tese | · *Ex.: Para [cliente] que [dor], [solução] entrega [resultado], diferente de [alternativa].* |
+| `resultado_prometido` | Resultado prometido | texto-curto | A tese | O resultado concreto que o cliente leva. |
+| `prazo_do_resultado` | Em quanto tempo ele chega | texto-curto | A tese | · *Ex.: em 30 dias* |
+| `como_funciona` | Como funciona (em poucas frases) | texto-longo | A tese | O mecanismo: por que esse jeito de resolver funciona. |
+| `alternativa_substituida` | Alternativa que você substitui | texto-curto | Diferenciação | O que o cliente deixa de usar ao escolher você. |
+| `diferenciais` | Diferenciais | lista-texto | Diferenciação | — |
+| `vantagem_injusta` | Por que você | texto-longo | Diferenciação | O que você tem que é difícil de copiar. |
+| `prova_de_credibilidade` | Provas de credibilidade | lista-texto | Diferenciação | Resultados, cases, certificações, números que sustentam a promessa. |
+| `o_que_nao_oferece` | O que você NÃO faz | lista-texto | Diferenciação | Limites claros da tese: ajudam a focar e a filtrar clientes. |
+| `hipoteses_criticas` | Hipóteses críticas | lista-texto | Riscos e confiança | O que precisa ser verdade para a tese se sustentar (vão para a Validação). |
+| `como_testar` | Como testar a hipótese mais arriscada | texto-longo | Riscos e confiança | — |
+| `o_que_derruba_a_tese` | O que derrubaria a tese | texto-longo | Riscos e confiança | Um fato que, se aparecer, mostra que está errada. |
+| `nivel_de_confianca` | Nível de confiança | selecao: `baixo` "Baixo", `medio` "Médio", `alto` "Alto" | Riscos e confiança | — |
 
 Coleções: nenhuma.
 
-#### 3.7.7 `direcao/oferta` — Oferta (desenho)
+#### 3.7.7 `direcao/oferta` — Oferta
 
 Descrição: *O que será vendido, para quem, por quanto e em quais condições.* · Relacionados: `direcao/tese-de-valor`, `validacao/oferta`.
 
-| nome | rótulo | tipo | ajuda / placeholder |
-|---|---|---|---|
-| `nome_da_oferta` | Nome da oferta | texto-curto | · *Ex.: Caixa em Dia* |
-| `promessa` | Promessa | texto-longo | O que o cliente conquista e em quanto tempo. |
-| `entregaveis` | O que está incluso | lista-texto | — |
-| `formato` | Formato | selecao: `produto` "Produto", `servico` "Serviço", `assinatura` "Assinatura", `curso` "Curso", `consultoria` "Consultoria", `outro` "Outro" | — |
-| `preco` | Preço | moeda [min 0] | — |
-| `modelo_de_cobranca` | Modelo de cobrança | selecao: `unico` "Pagamento único", `mensal` "Mensal", `anual` "Anual", `por-projeto` "Por projeto", `por-hora` "Por hora" | — |
-| `garantia` | Garantia | texto-curto | · *Ex.: 7 dias ou seu dinheiro de volta* |
-| `bonus` | Bônus | lista-texto | — |
+| nome | rótulo | tipo | grupo | ajuda / placeholder |
+|---|---|---|---|---|
+| `nome_da_oferta` | Nome da oferta | texto-curto | A oferta | · *Ex.: Caixa em Dia* |
+| `promessa` | Promessa | texto-longo | A oferta | O que o cliente conquista e em quanto tempo. |
+| `para_quem_e` | Para quem é | texto-curto | A oferta | — |
+| `para_quem_nao_e` | Para quem NÃO é | texto-curto | A oferta | — |
+| `formato` | Formato | selecao: `produto` "Produto", `servico` "Serviço", `assinatura` "Assinatura", `curso` "Curso", `consultoria` "Consultoria", `outro` "Outro" | A oferta | — |
+| `entregaveis` | O que está incluso | lista-texto | Entrega | — |
+| `como_entrega` | Como você entrega | texto-longo | Entrega | Passo a passo do que acontece depois que o cliente compra. |
+| `prazo_de_entrega` | Prazo de entrega | texto-curto | Entrega | · *Ex.: 7 dias úteis* |
+| `horas_por_cliente` | Horas suas por cliente | numero [min 0, unidade "h"] | Entrega | Quanto do seu tempo cada cliente consome (base para saber quantos cabem). |
+| `capacidade_de_clientes` | Quantos clientes você atende ao mesmo tempo | numero [inteiro, min 0, unidade "clientes"] | Entrega | — |
+| `preco` | Preço | moeda [min 0] | Preço e condições | — |
+| `precos_por_versao` | Preço por versão | lista-texto | Preço e condições | · *Ex.: Versão básica: R$ 10.000* |
+| `modelo_de_cobranca` | Modelo de cobrança | selecao: `unico` "Pagamento único", `mensal` "Mensal", `anual` "Anual", `por-projeto` "Por projeto", `por-hora` "Por hora" | Preço e condições | — |
+| `custo_por_cliente` | Custo para entregar a um cliente | moeda [min 0] | Preço e condições | Ferramentas, impostos, comissões e outros custos diretos. |
+| `como_chegou_no_preco` | Como você chegou neste preço | texto-curto | Preço e condições | · *Ex.: 3x o custo; comparação com concorrentes; valor do problema* |
+| `garantia` | Garantia | texto-curto | Preço e condições | · *Ex.: 7 dias ou seu dinheiro de volta* |
+| `bonus` | Bônus | lista-texto | Preço e condições | — |
 
 Coleções: nenhuma.
 
-#### 3.7.8 `validacao/oferta` — Oferta (teste)
+#### 3.7.8 `validacao/oferta` — Oferta
 
 Descrição: *A oferta testada no mercado, o critério de sucesso e o que mudou a cada rodada.* · Relacionados: `direcao/oferta`, `validacao/primeiros-clientes`.
 
@@ -910,7 +1040,7 @@ Descrição: *A oferta testada no mercado, o critério de sucesso e o que mudou 
 | `fim_do_teste` | Fim do teste | data | — |
 | `veredito` | Veredito | selecao: `em-andamento` "Em andamento", `manter` "Manter", `ajustar` "Ajustar", `descartar` "Descartar" | Persistir, pivotar ou parar. |
 
-Coleção **`iteracoes`** — rótulo "Iterações", item "Iteração"; título `mudanca`, subtítulo `data`; ordenar por `data` desc.
+Coleção **`iteracoes`** — rótulo "Iterações", item "Iteração"; título `mudanca`, subtítulo `data`; ordenada por `data` (desc).
 
 | nome | rótulo | tipo | ajuda / placeholder |
 |---|---|---|---|
@@ -945,9 +1075,9 @@ Coleção **`clientes`** — rótulo "Clientes", item "Cliente"; título `nome`,
 | `proximo_passo` | Próximo passo | texto-curto | · *Ex.: Enviar proposta até sexta* |
 | `aprendizado` | Aprendizado | texto-longo | O que esta conversa ensinou. |
 
-Resumos: `contagem` "Clientes fechados" (filtro `status = fechado`); `soma` "Receita fechada" de `valor` (filtro `status = fechado`). (Exemplo completo de arquivo em §3.8.2.)
+Resumos: `contagem` "Clientes fechados" (filtro `status = fechado`); `soma` "Receita fechada" de `valor` (filtro `status = fechado`).
 
-#### 3.7.10 `validacao/fluxo-de-caixa` — Fluxo de Caixa (orçamento do teste)
+#### 3.7.10 `validacao/fluxo-de-caixa` — Fluxo de Caixa
 
 Descrição: *O caixa mínimo do período de teste: quanto gastar e quando parar.* · Relacionados: `validacao/oferta`, `founder/estilo-de-vida`.
 
@@ -960,19 +1090,19 @@ Descrição: *O caixa mínimo do período de teste: quanto gastar e quando parar
 | `data_limite` | Data limite do teste | data | — |
 | `premissas_de_custo` | Premissas de custo | lista-texto | · *Ex.: anúncio de R$ 20/dia por 15 dias* |
 
-Coleção **`lancamentos`** — rótulo "Lançamentos", item "Lançamento"; título `descricao`, subtítulo `data`, destaque `tipo`; ordenar por `data` desc.
+Coleção **`lancamentos`** — rótulo "Lançamentos", item "Lançamento"; título `descricao`, subtítulo `data`, destaque `tipo`; ordenada por `data` (desc).
 
 | nome | rótulo | tipo | ajuda / placeholder |
 |---|---|---|---|
 | `data`* | Data | data | — |
 | `descricao`* | Descrição | texto-curto | · *Ex.: Impulsionamento Instagram* |
-| `tipo`* | Tipo | selecao: `OPCOES_TIPO_LANCAMENTO` | — |
+| `tipo`* | Tipo | selecao: `entrada` "Entrada", `saida` "Saída" | — |
 | `valor`* | Valor | moeda [min 0] | Sempre positivo; o tipo define se entra ou sai. |
 | `categoria` | Categoria | selecao: `ferramentas` "Ferramentas", `marketing` "Marketing", `materiais` "Materiais", `deslocamento` "Deslocamento", `vendas` "Vendas", `outros` "Outros" | — |
 
-Resumos: `saldo` "Saldo do teste" (`campo: valor`, `campoTipo: tipo`, `entrada`/`saida`); `soma` "Gasto até agora" de `valor` (filtro `tipo = saida`).
+Resumos: `saldo` "Saldo do teste" de `valor` (tipo em `tipo`: entrada `entrada`, saída `saida`); `soma` "Gasto até agora" de `valor` (filtro `tipo = saida`).
 
-#### 3.7.11 `caixa/fluxo-de-caixa` — Fluxo de Caixa (operação)
+#### 3.7.11 `caixa/fluxo-de-caixa` — Fluxo de Caixa
 
 Descrição: *A operação recorrente: entradas, saídas, saldo e projeção.* · Relacionados: `caixa/erp`, `founder/estilo-de-vida`.
 
@@ -985,29 +1115,19 @@ Descrição: *A operação recorrente: entradas, saídas, saldo e projeção.* �
 | `pro_labore` | Pró-labore | moeda [min 0] | Retirada mensal combinada. |
 | `reserva_minima` | Reserva mínima | moeda [min 0] | Abaixo deste saldo, acenda o alerta. |
 
-Coleção **`lancamentos`** — rótulo "Lançamentos", item "Lançamento"; título `descricao`, subtítulo `data`, destaque `status`; ordenar por `data` desc.
+Coleção **`lancamentos`** — rótulo "Lançamentos", item "Lançamento"; título `descricao`, subtítulo `data`, destaque `status`; ordenada por `data` (desc).
 
 | nome | rótulo | tipo | ajuda / placeholder |
 |---|---|---|---|
 | `data`* | Data | data | — |
 | `descricao`* | Descrição | texto-curto | — |
-| `tipo`* | Tipo | selecao: `OPCOES_TIPO_LANCAMENTO` | — |
+| `tipo`* | Tipo | selecao: `entrada` "Entrada", `saida` "Saída" | — |
 | `valor`* | Valor | moeda [min 0] | — |
 | `categoria` | Categoria | selecao: `receita-de-vendas` "Receita de vendas", `outras-receitas` "Outras receitas", `pro-labore` "Pró-labore", `impostos` "Impostos", `ferramentas` "Ferramentas", `marketing` "Marketing", `fornecedores` "Fornecedores", `pessoal` "Pessoal", `outros` "Outros" | — |
 | `recorrencia` | Recorrência | selecao: `unica` "Única", `mensal` "Mensal", `anual` "Anual" | — |
 | `status` | Situação | selecao: `previsto` "Previsto", `realizado` "Realizado" | — |
 
-Resumos (exatamente dois; `filtro` aceita uma única condição, projeções ficam para a Fase 2):
-
-```ts
-resumos: [
-  { tipo: "saldo", rotulo: "Saldo realizado", campo: "valor", campoTipo: "tipo",
-    entrada: "entrada", saida: "saida", campoBase: "saldo_inicial",
-    filtro: { campo: "status", valor: "realizado" } },
-  { tipo: "soma", rotulo: "Total de saídas", campo: "valor",
-    filtro: { campo: "tipo", valor: "saida" } }, // inclui previstas e realizadas
-]
-```
+Resumos: `saldo` "Saldo realizado" de `valor` (tipo em `tipo`: entrada `entrada`, saída `saida`; base `saldo_inicial`) (filtro `status = realizado`); `soma` "Total de saídas" de `valor` (filtro `tipo = saida`).
 
 #### 3.7.12 `caixa/erp` — ERP
 
@@ -1048,9 +1168,43 @@ Coleção **`ferramentas`** — rótulo "Ferramentas", item "Ferramenta"; títul
 
 Resumos: `soma` "Custo mensal em uso" de `custo_mensal` (filtro `situacao = em-uso`).
 
+#### 3.7.13 `validacao/leads` — Leads
+
+Descrição: *Mini CRM: empresas e contatos encontrados pelos agentes, do primeiro achado até a conversa.* · Relacionados: `direcao/perfil-de-cliente-ideal`, `validacao/primeiros-clientes`.
+
+| nome | rótulo | tipo | ajuda / placeholder |
+|---|---|---|---|
+| `criterio_de_qualificacao` | Critério de qualificação | texto-longo | O que faz um lead entrar na lista: porte, segmento, sinais de dor. |
+| `meta_de_leads` | Meta de leads qualificados | numero [inteiro, min 0] | Quantos leads qualificados você quer ter para iniciar as conversas do teste. · *Ex.: 30* |
+| `fontes_de_busca` | Onde os agentes buscam | lista-texto | Sites, diretórios, associações e eventos onde os agentes procuram empresas. |
+| `regras_dos_agentes` | Regras para os agentes | texto-longo | O que os agentes podem e não podem fazer: só fontes públicas, sempre citar a fonte, nunca inventar contato. |
+
+Coleção **`leads`** — rótulo "Leads", item "Lead"; título `contato_nome`, subtítulo `empresa`, destaque `estagio`; ordenada por `entrou` (desc).
+
+Cards em lista (um por linha, abrem a gaveta lateral): apoio `contato_cargo`; texto `nota`; meta `fonte`, `fit`, `entrou`.
+
+| nome | rótulo | tipo | ajuda / placeholder |
+|---|---|---|---|
+| `contato_nome`* | Nome do contato | texto-curto | · *Ex.: Ana Souza* |
+| `contato_cargo` | Cargo | texto-curto | · *Ex.: Diretora de marketing* |
+| `contato_email` | E-mail | texto-curto | Só e-mail corporativo publicado pela própria empresa. |
+| `contato_linkedin` | LinkedIn | texto-curto | Link do perfil público do contato (ou, sem perfil, da página da empresa). · *Ex.: https://www.linkedin.com/in/...* |
+| `empresa`* | Empresa | texto-curto | · *Ex.: Metalúrgica Silva* |
+| `nota` | Por que é lead | texto-curto | Uma frase: o sinal que o agente viu (dor, momento da empresa, encaixe com o perfil). |
+| `fonte` | Fonte | selecao: `linkedin` "LinkedIn", `site-institucional` "Site institucional", `indicacao` "Indicação", `evento` "Evento", `diretorio` "Diretório ou associação", `outro` "Outro" | — |
+| `fonte_link` | Link da fonte | texto-curto | Matéria ou página pública onde o agente viu o sinal. · *Ex.: https://...* |
+| `encontrado_por` | Encontrado por | texto-curto | Nome do agente que trouxe o lead. |
+| `fit` | Fit com o perfil | numero [inteiro, min 0, max 100, unidade "pts"] | De 0 a 100: o quanto o lead se parece com o cliente ideal. |
+| `estagio`* | Estágio | selecao: `novo` "Novo", `contatado` "Contatado", `qualificado` "Qualificado", `em-negociacao` "Em negociação", `ganho` "Ganho", `perdido` "Perdido" | — |
+| `entrou` | Entrou em | data | Data em que o lead entrou na lista. |
+
+Resumos: `contagem` "Novo" (filtro `estagio = novo`); `contagem` "Qualificado" (filtro `estagio = qualificado`); `contagem` "Em negociação" (filtro `estagio = em-negociacao`); `contagem` "Ganho" (filtro `estagio = ganho`).
+
 ### 3.8 Exemplos completos de arquivo
 
 #### 3.8.1 Página só com campos — `content/direcao/perfil-de-cliente-ideal.md`
+
+> Exemplo ilustrativo e simplificado (formato do arquivo). O arquivo real tem mais campos e, desde a v1.1, itens da coleção `personas` (§3.7.5).
 
 ```markdown
 ---
@@ -1194,7 +1348,7 @@ Arquivo `src/lib/content/navigation.ts` — **conteúdo exato** (é fonte única
 // Fonte única da navegação do BusinessOS: estágio, seções, páginas, ordem e ícones.
 // Toda validação de id (rotas, API, repositório) passa por aqui.
 
-/** Estágios do negócio. Na Fase 1 existe apenas um. */
+/** Estágios do negócio. Por ora existe apenas um. */
 export const ESTAGIOS = ["para-quem-esta-comecando"] as const;
 export type Estagio = (typeof ESTAGIOS)[number];
 export const ESTAGIO_ATUAL: Estagio = "para-quem-esta-comecando";
@@ -1215,7 +1369,8 @@ export type NomeIcone =
   | "users"
   | "piggy-bank"
   | "wallet"
-  | "workflow";
+  | "workflow"
+  | "contact-round";
 
 export interface PaginaNav {
   slug: string;
@@ -1304,6 +1459,12 @@ export const NAVEGACAO = [
         titulo: "Oferta",
         descricao: "A oferta testada no mercado, o critério de sucesso e o que mudou a cada rodada.",
         icone: "flask-conical",
+      },
+      {
+        slug: "leads",
+        titulo: "Leads",
+        descricao: "Mini CRM: empresas e contatos encontrados pelos agentes, do primeiro achado até a conversa.",
+        icone: "contact-round",
       },
       {
         slug: "primeiros-clientes",
@@ -1414,7 +1575,7 @@ Regras: adicionar página = adicionar entrada em `NAVEGACAO` + criar `schemas/pa
 import type { ContentDoc, DocId } from "@/lib/content/types";
 
 export interface ContentRepository {
-  /** Todos os documentos da navegação, na ordem da navegação (12). Ausentes vêm do template. */
+  /** Todos os documentos da navegação, na ordem da navegação (13). Ausentes vêm do template. */
   list(): Promise<ContentDoc[]>;
   /** Um documento. Id fora da navegação → ErroConteudo NAO_ENCONTRADO. Arquivo ausente → template. */
   get(id: DocId): Promise<ContentDoc>;
@@ -1427,11 +1588,13 @@ export interface ContentRepository {
 
 /** Ponto único de troca de armazenamento (BUSINESSOS_STORAGE=fs | supabase). */
 export function getContentRepository(): ContentRepository;
-// Fase 1: "fs" (padrão) → instância singleton de FileSystemContentRepository.
-// "supabase" → lança ErroConteudo("ERRO_INTERNO", "Armazenamento Supabase ainda não implementado.").
+// "supabase" (padrão) → SupabaseContentRepository (§11.4), escopo do usuário da sessão.
+// "fs" → instância singleton de FileSystemContentRepository (testes, seed e migração).
 ```
 
 ### 5.2 `FileSystemContentRepository` (`fs-repository.ts`)
+
+> Modo `BUSINESSOS_STORAGE=fs`. Não é mais o padrão; permanece para testes, seed e como leitor da migração. A implementação padrão é o `SupabaseContentRepository` (§11.4).
 
 Construtor: `new FileSystemContentRepository({ raiz?: string })`. `raiz` padrão = `process.env.BUSINESSOS_CONTENT_DIR || path.join(process.cwd(), "content")`, resolvida com `path.resolve` uma vez. (Testes passam um diretório temporário.)
 
@@ -1659,7 +1822,7 @@ Resposta 200 `?format=md` (`Content-Type: text/markdown; charset=utf-8`) — ger
 ```markdown
 # BusinessOS — contexto do negócio
 
-> Estágio: Sistema de marca viva · Gerado em 2026-11-08T18:10:00.000Z · 12 documentos
+> Estágio: Sistema de marca viva · Gerado em 2026-11-08T18:10:00.000Z · 13 documentos
 
 ## FOUNDER
 
@@ -1777,7 +1940,7 @@ Resposta 200: `{ "documento": ContentDoc }` (o documento completo gravado). Não
 
 ### 6.5 Segurança da API (`src/lib/content/api/acesso.ts`)
 
-**Fase 1 não tem autenticação de usuários.** A API existe para agentes rodando na mesma máquina. Regra:
+A API de agentes não usa login: autentica por token (`BUSINESSOS_API_TOKEN`) e age como o usuário `BUSINESSOS_API_USER_ID` via cliente admin (§11.4). A UI usa Supabase Auth. Regra do token:
 
 ```ts
 /** Retorna uma Response de erro se o acesso for negado, ou null se liberado. */
@@ -1806,7 +1969,7 @@ Medidas complementares (obrigatórias):
 - Limite de 256 KiB no corpo; exigência de `Content-Type: application/json` no PUT (impede "simple requests" CSRF de formulários de outros sites; o navegador força preflight e não respondemos CORS).
 - Nenhum cabeçalho CORS é emitido. `OPTIONS` não é exportado.
 - Script `dev` DEVE ser `next dev -H 127.0.0.1` (não expor na rede local). Ajuste feito pela Onda 3B em `package.json`.
-- Server Actions: sem auth na Fase 1; contam com a verificação de origem embutida do Next. O app **não** deve ser publicado antes da Fase 3 (PRD R1/R4). Em hospedagem serverless o disco é somente leitura e a gravação falha com `ERRO_INTERNO` (mensagem amigável).
+- Server Actions: exigem sessão do Supabase Auth e contam com a verificação de origem embutida do Next; a RLS isola os dados por usuário. Antes de publicar, revisar as políticas RLS, definir `BUSINESSOS_API_TOKEN` e tratar os pontos de LGPD (PRD, seção de segurança). No modo `fs` em hospedagem serverless o disco é somente leitura e a gravação falha com `ERRO_INTERNO` (mensagem amigável).
 
 ### 6.6 Variáveis de ambiente (`.env.example`)
 
@@ -1814,11 +1977,41 @@ Medidas complementares (obrigatórias):
 # Token da API de contexto (/api/context). Opcional em dev; obrigatório para a API funcionar com NODE_ENV=production.
 # Quando definido, toda requisição precisa de: Authorization: Bearer <token>
 BUSINESSOS_API_TOKEN=
-# Pasta de conteúdo (padrão: ./content). Usada pelos testes.
+# Pasta de conteúdo (padrão: ./content). Usada pelos testes e pelo modo fs.
 BUSINESSOS_CONTENT_DIR=
-# Armazenamento: fs (padrão) | supabase (Fase 3, ainda não implementado)
-BUSINESSOS_STORAGE=fs
+# Armazenamento: supabase (padrão) | fs
+BUSINESSOS_STORAGE=supabase
 ```
+
+Tabela completa das variáveis (a referência para copiar é `.env.example`). Todas, exceto as `NEXT_PUBLIC_*`, valem **só no servidor**.
+
+| Variável | Para que serve | Padrão |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL do projeto Supabase | (obrigatória) |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Chave publicável (pode ir ao navegador; a RLS protege) | (obrigatória) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Chave secreta que ignora RLS; só servidor e scripts, nunca `NEXT_PUBLIC_` | (obrigatória para API de agentes e scripts) |
+| `BUSINESSOS_STORAGE` | `supabase` ou `fs` | `supabase` |
+| `BUSINESSOS_CONTENT_DIR` | Pasta de `content/` (modo `fs`, seed, migração, testes) | `./content` |
+| `BUSINESSOS_API_TOKEN` | Bearer da API de agentes; sem ele, a API responde 403 em produção | vazio |
+| `BUSINESSOS_API_USER_ID` | Usuário em nome do qual a API de agentes lê e escreve (id do admin criado) | vazio |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Só para `npm run admin:criar`; passar na linha de comando, nunca em arquivo | não definidas |
+| `ANTHROPIC_API_KEY` | Chave da IA. Se definida, o modo padrão da IA é `api`; sem ela, `cli` | vazio |
+| `BUSINESSOS_IA` | `api` \| `cli` \| `desligada`; vence a regra do padrão | conforme a chave |
+| `BUSINESSOS_IA_MODELO` | Modelo usado no modo `api` | `claude-sonnet-5-5` |
+| `BUSINESSOS_IA_MAX_TOKENS` | Limite de tokens da resposta | `8192` |
+
+A IA passa por um contrato único `ProvedorIA` (`src/lib/ia/provedor.ts`) com dois modos: `api` (`src/lib/ia/claude-api.ts`, `fetch` direto, sem SDK) e `cli` (`claude -p`, o comportamento anterior). Para ligar a API: colocar `ANTHROPIC_API_KEY` em `.env.local` e reiniciar o app.
+
+---
+
+### 6.7 API do workflow (`/api/workflow`)
+
+Mesmo controle de acesso (§6.5) e mesmo formato de erro (§6.1) de `/api/context`. `export const runtime = "nodejs"`.
+
+- `GET /api/workflow` → `{ tarefas: Tarefa[], agentes: [...] }`: o que já está em andamento e os agentes definidos em `agents/*.md`.
+- `POST /api/workflow` (`Content-Type: application/json`, corpo ≤ 256 KiB) → `{ tarefa }`. O agente cria (sem `id`) ou atualiza (com `id`) a própria tarefa. Corpo (`entradaTarefaSchema`, estrito): `agente` (nome do arquivo em `agents/`, obrigatório), `id?`, `titulo?` (1–120), `status?` (`fila` | `trabalhando` | `revisao` | `concluida`), `docs?` (até 12 `DocId`), `nota?` (≤ 300; `null` limpa).
+- Persistência: tabela `tarefas` do Supabase (do usuário `BUSINESSOS_API_USER_ID`; o modo `fs` ainda usa `workflow/tarefas.json`). Máximo de 200 tarefas; ao passar disso, descarta as concluídas mais antigas.
+- Erros: `TIPO_NAO_SUPORTADO`, `PAYLOAD_GRANDE`, `JSON_INVALIDO`, `PAYLOAD_INVALIDO` (com `detalhes`), `CONTEUDO_INVALIDO` (arquivo inválido), `ERRO_INTERNO`.
 
 ---
 
@@ -1828,17 +2021,24 @@ Todas as páginas do grupo `(app)` declaram `export const dynamic = "force-dynam
 
 | Rota | Arquivo | Renderiza |
 |---|---|---|
-| (layout) | `src/app/layout.tsx` | `<html lang="pt-BR" suppressHydrationWarning>`, `<body className={inter.variable + " font-sans antialiased"}>`, `ThemeProvider`, `Toaster` (sonner, `position="bottom-center"`). `metadata`: `title: { default: "BusinessOS", template: "%s · BusinessOS" }`, `description: "Inteligência do negócio para quem está começando."` |
+| (layout) | `src/app/layout.tsx` | `<html lang="pt-BR" suppressHydrationWarning>`, `<html className={plexMono.variable + " " + cormorant.variable}>` e `<body className="flex min-h-full flex-col font-sans antialiased">` (fontes IBM Plex Mono e Cormorant Garamond via `next/font/google`), `ThemeProvider`, `Toaster` (sonner, `position="bottom-center"`). `metadata`: `title: { default: "BusinessOS", template: "%s · BusinessOS" }`, `description: "Inteligência do negócio para quem está começando."` |
 | (layout do shell) | `src/app/(app)/layout.tsx` | Server Component. Lê cookie `sidebar_state` (`defaultOpen = valor !== "false"`). Tenta `listarDocumentos()` para montar `statusPorId: Record<DocId, Status>`; se lançar, `console.error` e segue sem status. `<SidebarProvider defaultOpen><AppSidebar statusPorId /><SidebarInset>{children}</SidebarInset></SidebarProvider>` |
 | `/` | `(app)/page.tsx` | `AppHeader trilha=[{rotulo:"Início"}]`; `h1` "Visão geral" + subtítulo "Acompanhe o que já está claro no seu negócio e o que falta decidir."; `CardCollection chavePreferencia="inicio"` com 4 `SectionCard`. Erro `CONTEUDO_INVALIDO` → bloco de alerta listando `detalhes` e a dica "Rode `npm run content:validate`." (os SectionCards não são exibidos). `metadata.title = "Início"` |
+| `/comecar` | `(app)/comecar/page.tsx` | **Passo a passo.** `PassoAPasso` com as perguntas das seções `founder` e `direcao` (Validação e Caixa dependem de dados do negócio rodando). Uma pergunta por vez, com progresso; cada resposta é salva ao avançar (`salvarDocumento`), então dá para sair e voltar; começa na primeira pergunta sem resposta e, se tudo está respondido, abre direto a revisão editável. `metadata.title = "Passo a passo"` |
+| `/briefing` | `(app)/briefing/page.tsx` | **Briefing:** análise das respostas feita pela IA (`gerar` via `BotaoGerar`), com completude geral e data da última geração. Usa o contrato `ProvedorIA` (`src/lib/ia/provedor.ts`) com os modos `api` (`claude-api.ts`) e `cli` (`claude-cli.ts`: `claude -p`, sem ferramentas, tempo limite de 4 min); só no servidor, ver §6.6 |
+| `/oportunidades` | `(app)/oportunidades/page.tsx` | **Funil Kanban** dos leads, uma coluna por estágio (`novo`, `contato`, `proposta`, `negociacao`, `ganho`, `perdido`). Mover = arrastar o cartão (mouse, toque, teclado) ou o seletor no cartão; criar, editar e excluir em modal. Persistência na tabela `oportunidades` (modo `fs`: `oportunidades/oportunidades.json`) |
+| `/workflow` | `(app)/workflow/page.tsx` | **Kanban das tarefas dos agentes** (`fila`, `trabalhando`, `revisao`, `concluida`), com avatar do agente e os documentos; arrastar muda o status; atualiza sozinho (`AtualizarAuto`). Mobile: colunas com rolagem horizontal; a partir de `lg`, as 4 colunas ocupam a largura |
+| `/agentes` | `(app)/agentes/page.tsx` | Cards dos agentes (avatar + nome), o que leem e escrevem e se estão trabalhando agora; clicar abre o modal de edição do agente |
 | `/[secao]` | `(app)/[secao]/page.tsx` | Seção inválida → `notFound()`. `AppHeader trilha=[Início → /, {rotulo: secao.nome}]`; `h1` = `secao.nome`, parágrafo = `secao.descricao`; `CardCollection chavePreferencia={"secao:" + slug}` com um `PageCard` por página (título, descrição, status, completude, atualizado em). `generateMetadata` → `title: secao.nome` |
-| `/[secao]/[pagina]` | `(app)/[secao]/[pagina]/page.tsx` | `montarId` nulo → `notFound()`. `lerDocumento(id)`; `CONTEUDO_INVALIDO` → painel de erro com detalhes e caminho `content/<id>.md` (sem editor, para não sobrescrever). Senão: `AppHeader trilha=[Início, Seção (link), Página]`; `PageEditor` com `documento`, `definicao`, `resumos` (pré-calculados por coleção), `completude` e `onSalvar={salvarDocumento.bind(null, id)}`. `generateMetadata` → `title: "<titulo> · <secao.nome>"` |
+| `/[secao]/[pagina]` | `(app)/[secao]/[pagina]/page.tsx` | `montarId` nulo → `notFound()`. `lerDocumento(id)`; `CONTEUDO_INVALIDO` → painel de erro com detalhes e identificação do documento (sem editor, para não sobrescrever). Senão: `AppHeader trilha=[Início, Seção (link), Página]`; `PaginaRelatorio` com `documento`, `definicao`, `resumos` (pré-calculados por coleção), `onSalvar={salvarDocumento.bind(null, id)}`, `onPedirIA` (`pedirIAAction`) e `onGerarRelatorio` (`gerarRelatorioAction`). A página abre em **relatório de leitura** (`RelatorioPagina`); "Editar" abre o `PageEditor` completo em um modal (fechar com alterações pede confirmação) e "Aprovar" grava `status: validado`. `generateMetadata` → `title: "<titulo> · <secao.nome>"` |
 | loading | `(app)/[secao]/[pagina]/loading.tsx` | Skeleton: título, 6 cards de campo, bloco de notas |
 | 404 no shell | `(app)/not-found.tsx` | Dentro do shell: "Página não encontrada", texto "Este endereço não existe no BusinessOS.", botão "Voltar ao início" (`/`). Usado por `notFound()` das rotas acima |
 | 404 global | `src/app/not-found.tsx` | Mesmo conteúdo, sem sidebar (URLs com 3+ segmentos, ex.: `/a/b/c`) |
 | erro | `(app)/error.tsx` | `"use client"`; "Algo deu errado." + botão "Tentar de novo" (`reset()`) |
 
-**Ordem visual da página editável (`PageEditor`)**, mobile-first, coluna única, `max-w-5xl`:
+**Ordem visual do relatório (`RelatorioPagina`)**: `CabecalhoPagina` (etiqueta da seção, título em Cormorant, descrição, ações Editar/Aprovar), `Anel` de completude e `Indicador`es, blocos de campos por `grupo` (`CartaoCampo`; vazio vira `CampoNaoPreenchido`), uma `Bloco` por coleção e as notas (`NotasEstruturadas` quando há estrutura, senão texto corrido). Coleções com `lista` mostram um card por linha (`CartaoLista`, ou `CartaoPersona` quando `lista.variante = "persona"`); clicar abre a `GavetaItem` (leitura de todos os campos e edição do item, que salva só o item alterado com checagem de conflito). Coleções sem `lista` aparecem em grade de cards.
+
+**Ordem visual da edição (`PageEditor`, dentro do modal)**, mobile-first, coluna única, `max-w-5xl`:
 
 1. Cabeçalho: selo da seção (texto `secao.titulo` pequeno, caixa alta, `text-muted-foreground`) — distingue "Oferta" de Direção e de Validação; `h1` título; descrição; linha com `StatusSelect`, `Completude: NN%` e "Atualizado em … por …" (ou "Ainda não editado"); `relacionados` como links (`Badge variant="outline"` com `PaginaNav.titulo` + nome da seção).
 2. **Campos** — `CardCollection titulo="Campos" chavePreferencia={id + "#campos"}` com um `FieldCard` por campo.
@@ -1863,7 +2063,7 @@ Regras gerais:
 | Componente | Arquivo | Props (TS) | Responsabilidade | Story |
 |---|---|---|---|---|
 | `ThemeProvider` | `components/theme-provider.tsx` | `ComponentProps<typeof NextThemesProvider>` | Wrapper client de next-themes. Uso: `attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange` | não |
-| `AppSidebar` | `layout/app-sidebar.tsx` | `{ statusPorId?: Partial<Record<DocId, Status>> }` | Sidebar shadcn (`collapsible="offcanvas"`). Header: marca "BusinessOS" (texto, `font-semibold`) + `StageBadge`. Conteúdo: um `SidebarGroup` por seção (`SidebarGroupLabel` = `secao.titulo`), `SidebarMenuButton asChild` + `Link` com ícone e título; `isActive` = `usePathname() === href`. Indicador de status à direita: ponto `size-1.5 rounded-full` — `vazio` sem ponto, `rascunho`/`em-validacao` contorno, `validado` preenchido (`bg-foreground`), com `sr-only` do rótulo. Clique em link no mobile chama `setOpenMobile(false)`. Footer: link "Início" (`/`). `SidebarRail` | sim (com `SidebarProvider`; `parameters.nextjs.navigation.pathname`) |
+| `AppSidebar` | `layout/app-sidebar.tsx` | `{ statusPorId?: Partial<Record<DocId, Status>> }` | Sidebar shadcn (`collapsible="offcanvas"`). Header: marca "BusinessOS" (texto, `font-semibold`) + `StageBadge`. Conteúdo: grupo **GERAL** (Início, Passo a passo, Oportunidades, Briefing), um `SidebarGroup` por seção (`SidebarGroupLabel` = `secao.titulo`), `SidebarMenuButton asChild` + `Link` com ícone e título; `isActive` = `usePathname() === href`. Indicador de status à direita: ponto `size-1.5 rounded-full` — `vazio` sem ponto, `rascunho`/`em-validacao` contorno, `validado` preenchido (`bg-foreground`), com `sr-only` do rótulo. Clique em link no mobile chama `setOpenMobile(false)`. Grupo **SISTEMA** no fim (Workflow `/workflow`, Agentes `/agentes`). `SidebarRail` | sim (com `SidebarProvider`; `parameters.nextjs.navigation.pathname`) |
 | `AppHeader` | `layout/app-header.tsx` | `{ trilha: { rotulo: string; href?: string }[] }` | Barra superior `sticky top-0 z-10 h-14 border-b bg-background/80 backdrop-blur`: `SidebarTrigger` (aria-label "Abrir menu"), separador vertical, `Breadcrumb` (último item sem link = `BreadcrumbPage`; no mobile mostra só o último), `ThemeToggle` à direita | sim |
 | `ThemeToggle` | `layout/theme-toggle.tsx` | `{ className?: string }` | Botão `ghost size="icon"` que alterna `dark`↔`light` (`useTheme`). Ícone `Moon` no escuro, `Sun` no claro; antes de montar renderiza o botão sem ícone (evita mismatch). aria-label "Alternar para tema claro/escuro" | sim |
 | `StageBadge` | `layout/stage-badge.tsx` | `{ estagio?: Estagio; className?: string }` | `Badge variant="outline"` com `ROTULO_ESTAGIO[estagio ?? ESTAGIO_ATUAL]` | sim |
@@ -1881,6 +2081,17 @@ Regras gerais:
 | `SectionCard` | `cards/section-card.tsx` | `{ secao: SecaoNav; paginas: { pagina: PaginaNav; href: string; status: Status; completude: number; atualizadoEm: string }[] }` | Card da home: título da seção, descrição, contagem por status ("2 validadas · 1 em validação · 1 rascunho · 1 vazia"), barra `Progress` com % de páginas não vazias (RF-07), "Próxima: <página>" (primeira `vazio` ou `rascunho`, RF-08) como link, e lista das páginas (links com `StatusBadge`). Link do título → `/<secao>` | sim |
 | `PageCard` | `cards/page-card.tsx` | `{ href: string; titulo: string; descricao: string; status: Status; completude: number; atualizadoEm: string; icone?: NomeIcone }` | Card-link (`Link` envolvendo o card): ícone, título, descrição (`line-clamp-2`), `StatusBadge`, `Progress` fino (`h-1`) com `completude`, "Atualizado em dd/mm/aaaa" ou "Ainda não editado". Hover `bg-accent/50`; foco visível | sim |
 | `PageEditor` | `editor/page-editor.tsx` | `{ documento: ContentDoc; definicao: PageDefinition; resumos: Record<string, ResumoCalculado[]>; onSalvar: (patch: DocPatch, esperadoAtualizadoEm?: string) => Promise<ResultadoAcao> }` | Dono do **rascunho** da página (§8.3). Renderiza cabeçalho, campos, coleções, notas e `SaveBar`. Monta o patch mínimo, trata conflito, avisa ao sair com pendências | sim (limpo, com alterações, conflito, salvando) |
+| `PaginaRelatorio` | `relatorio/pagina-relatorio.tsx` | `Pick<PageEditorProps, "documento" \| "definicao" \| "resumos" \| "onSalvar" \| "onPedirIA" \| "onGerarRelatorio">` | Relatório de leitura + botões **Aprovar** (`onSalvar({ status: "validado" }, atualizado_em)`) e **Editar** (abre o `PageEditor` em `Dialog` de 94 dvh; fechar com alterações pendentes abre `AlertDialog` "Fechar sem salvar?") | não |
+| `RelatorioPagina` | `relatorio/relatorio-pagina.tsx` | `{ documento: ContentDoc; definicao: PageDefinition; resumos: Record<string, ResumoCalculado[]>; acoes?: ReactNode; onSalvar?: PageEditorProps["onSalvar"] }` | Leitura da página: cabeçalho, completude, campos por grupo, coleções e notas (ver §7). Sem `onSalvar` os cards ficam só para leitura | sim |
+| `CartaoPersona` | `relatorio/relatorio-pagina.tsx` (exportado) | `{ colecao: CollectionDef; item: Item; indice: number; onAbrir?: () => void }` | Card da coleção de personas (`lista.variante = "persona"`): número grande (`indice + 1`, 2 dígitos) em `text-primary`, título (`campoTitulo`), frase de destaque (`campoSubtitulo`), perfil (`lista.apoioTitulo`) em cinza, texto (`lista.texto`) com rótulo e filete à esquerda (máx. 3 linhas) e `lista.chips` como chips (3 visíveis, o resto vira "+N"; título do chip com o texto completo). Clicável por mouse e teclado quando há `onAbrir` | sim (`BusinessOS/Relatório/CartaoPersona`) |
+| `GavetaItem` | `relatorio/gaveta-item.tsx` | `{ colecao: CollectionDef; item?: Item; onFechar: () => void; atualizadoEm: string; onSalvar: PageEditorProps["onSalvar"] }` | `Sheet` lateral direita (`sm:max-w-lg`). Leitura: um par rótulo/valor por campo (`CelulaItem`); botão "Editar <rotuloItem>" abre o `CorpoItemForm`. Salvar envia só o item (`{ itens: [item] }`) com `atualizadoEm`; `CONFLITO` → toast pedindo para fechar, reler e editar de novo | sim |
+| `CelulaItem` | `relatorio/celula-item.tsx` | `{ campo: FieldDef; valor: ValorCampo }` | Valor curto: vazio → "—"; `selecao` → selo (`ESTILO_ESTAGIO` por valor: novo, contatado, qualificado, em-negociacao, ganho, perdido); `numero` com `max` → barra + valor; texto que começa com `http(s)://` → link em nova aba; `data` → `tabular-nums`; demais → texto | sim |
+| `CabecalhoPagina` | `relatorio/cabecalho-pagina.tsx` | `{ eyebrow?; titulo; descricao?; acoes?; children? }` | Cabeçalho padrão das telas; **único uso** da fonte Cormorant (`font-display`) | não |
+| `NotasEstruturadas` | `relatorio/notas-estruturadas.tsx` | `{ entradas: EntradaNota[] }` | Notas com hierarquia: cabeçalho por entrada (autor, título, data), abertura em destaque, números em negrito, tabelas, selos hipótese/fato/lacuna. Entradas `[SEGUNDO PLANO]` (e o antigo `[DESCARTADA]`) ficam recolhidas e esmaecidas | não |
+| `PanoramaPaginas` | `relatorio/panorama-paginas.tsx` | `{ paginas: ... }` | Completude média e contagem por status (Início e índices de seção) | não |
+| `PassoAPasso` | `onboarding/passo-a-passo.tsx` | `{ paginas: PaginaOnboarding[] }` | Onboarding: uma pergunta por vez, com progresso; cada resposta é salva ao avançar; no fim, revisão editável | não |
+| `ContextoKanban` / `ColunaSoltavel` / `CartaoArrastavel` | `kanban/arrastar.tsx` | `{ aoMover; sobreposicao; children }` etc. | Arrastar e soltar dos Kanbans sobre `@dnd-kit/core`. Mouse: arrasta o card inteiro (6 px para começar, o clique continua valendo). Toque: segurar 200 ms. Teclado: foco na alça, Espaço pega, setas movem, Espaço solta, Esc cancela | não |
+| `AvatarAgente` | `agentes/avatar-agente.tsx` | `{ nome: string; tamanho?: number; className?: string }` | Avatar redondo com robô em SVG; cada agente tem a sua receita (cor, cabeça, olhos, boca, antena); sem receita, um robô determinístico a partir do nome | não |
 | `MarkdownNotes` | `editor/markdown-notes.tsx` | `{ valor: string; onChange: (v: string) => void; placeholder?: string; modificado?: boolean }` | `Tabs` "Escrever" / "Visualizar". Escrever: `Textarea` `min-h-60`, `field-sizing-content`, fonte normal. Visualizar: `renderMarkdownSimples(valor)` em `prose`-like simples (classes próprias). Vazio na visualização: "Nada escrito ainda." | sim |
 | `SaveBar` | `editor/save-bar.tsx` | `{ visivel: boolean; salvando: boolean; quantidade: number; onSalvar: () => void; onDescartar: () => void; mensagem?: string }` | Barra `sticky bottom-4` centralizada (`rounded-xl border bg-popover shadow-lg px-4 py-3`), com `aria-live="polite"`: "N alterações não salvas" (ou `mensagem`), botões "Descartar" (`ghost`) e "Salvar" (`default`, spinner `Loader2 animate-spin` quando `salvando`). Atalho exibido no desktop: "⌘S / Ctrl+S". Animação de entrada `motion-safe:animate-in slide-in-from-bottom-2` | sim (oculta, visível, salvando) |
 
@@ -1917,7 +2128,7 @@ Regras gerais:
 
 Instalar com `npx shadcn@latest add`:
 
-`sidebar` (traz `button`, `separator`, `sheet`, `tooltip`, `input`, `skeleton` e o hook `use-mobile`), `breadcrumb`, `card`, `badge`, `select`, `textarea`, `label`, `dialog`, `alert-dialog`, `dropdown-menu`, `tabs`, `progress`, `sonner`.
+`sidebar` (traz `button`, `separator`, `sheet`, `tooltip`, `input`, `skeleton` e o hook `use-mobile`), `breadcrumb`, `card`, `badge`, `select`, `textarea`, `label`, `dialog`, `alert-dialog`, `dropdown-menu`, `tabs`, `progress`, `scroll-area`, `toggle`, `toggle-group`, `sonner`. A `GavetaItem` usa o `sheet` (lado direito). Stories do shadcn: `UI/Button`, `UI/Badge`, `UI/Sheet`.
 
 Sem `form`/react-hook-form: o estado é controlado no `PageEditor` e validado com os schemas zod derivados (menos dependências; os formulários são gerados, não escritos à mão).
 
@@ -1927,111 +2138,143 @@ Sem `form`/react-hook-form: o estado é controlado no `PageEditor` e validado co
 
 ### 9.1 Princípios
 
-Minimalista, preto e branco (paleta **neutral**, croma 0), sem cor de acento. A única cor é `--destructive` (vermelho), restrita a erros e ações destrutivas. Dark por padrão. Inter. Raio `0.75rem`. Cards em vez de tabelas.
+Identidade visual DB (Figma "DB — Identidade Visual"): paleta oficial **Carvão** `#373634`, **Grisalho** `#B0C2C2`, **Marinho** `#3F495A`, **Verde** `#E4FE65` e **Branco Lunar** `#EFEFEF`. Tema escuro por padrão (Carvão + Verde); no claro, Branco Lunar + Carvão (o Verde só aparece no escuro). `--destructive` (vermelho) fica restrito a erros e ações destrutivas. Fonte **IBM Plex Mono** em toda a interface; **Cormorant Garamond** só nos títulos de página (`font-display`). Raio `0.75rem`. Cards em vez de tabelas. Estilo shadcn: `radix-nova`, ícones lucide.
 
 ### 9.2 `src/app/globals.css` (tokens normativos)
 
-O scaffold gera a base do shadcn (Tailwind v4); a Onda 2B garante exatamente estes valores (incluindo a correção do `--sidebar-primary` do tema escuro, que no padrão do shadcn é azul):
+Cópia do arquivo real. Os tons marcados "derivado" são misturas da paleta para superfícies e bordas.
 
 ```css
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Variantes customizadas (data-open, data-active…) usadas pelos componentes do estilo radix-nova */
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
+  /* IBM Plex Mono em tudo (identidade DB); next/font expõe --font-plex no <html> */
+  --font-sans: var(--font-plex), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: var(--font-plex), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Cormorant Garamond: títulos de página (classe font-display) */
+  --font-display: var(--font-cormorant), Georgia, serif;
+  --font-heading: var(--font-plex), ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Tema claro */
+/*
+ * Identidade visual DB (Figma "DB — Identidade Visual").
+ * Paleta oficial: Carvão #373634 · Grisalho #B0C2C2 · Marinho #3F495A · Verde #E4FE65 · Branco Lunar #EFEFEF.
+ * Os tons marcados "derivado" são misturas da paleta para superfícies e bordas (não existem no Figma).
+ * O Verde só aparece no tema escuro; no claro, o destaque é Carvão.
+ */
+
+/* Tema claro: Branco Lunar + Carvão */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #efefef; /* Branco Lunar */
+  --foreground: #373634; /* Carvão */
+  --card: #f7f7f7; /* derivado */
+  --card-foreground: #373634;
+  --popover: #f7f7f7; /* derivado */
+  --popover-foreground: #373634;
+  --primary: #373634; /* Carvão */
+  --primary-foreground: #efefef;
+  --secondary: #e2e6e6; /* derivado: Grisalho clareado */
+  --secondary-foreground: #373634;
+  --muted: #e2e6e6; /* derivado */
+  --muted-foreground: #3f495a; /* Marinho */
+  --accent: #d6dede; /* derivado: Grisalho clareado */
+  --accent-foreground: #373634;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --border: #c5d1d1; /* derivado: Grisalho clareado */
+  --input: #c5d1d1;
+  --ring: #3f495a; /* Marinho */
+  --chart-1: #b0c2c2; /* Grisalho */
+  --chart-2: #3f495a; /* Marinho */
+  --chart-3: #373634; /* Carvão */
+  --chart-4: #7d8a8a; /* derivado */
+  --chart-5: #5c6678; /* derivado */
+  --radius: 0.75rem;
+  --sidebar: #e6e9e9; /* derivado */
+  --sidebar-foreground: #373634;
+  --sidebar-primary: #373634;
+  --sidebar-primary-foreground: #efefef;
+  --sidebar-accent: #d6dede; /* derivado */
+  --sidebar-accent-foreground: #373634;
+  --sidebar-border: #c5d1d1;
+  --sidebar-ring: #3f495a;
 }
 
-/* Tema escuro (padrão, aplicado por next-themes via classe .dark no <html>) */
+/* Tema escuro (padrão, aplicado por next-themes via classe .dark no <html>): Carvão + Verde */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #373634; /* Carvão */
+  --foreground: #efefef; /* Branco Lunar */
+  --card: #403f3d; /* derivado */
+  --card-foreground: #efefef;
+  --popover: #403f3d; /* derivado */
+  --popover-foreground: #efefef;
+  --primary: #e4fe65; /* Verde */
+  --primary-foreground: #373634;
+  --secondary: #46453f; /* derivado */
+  --secondary-foreground: #efefef;
+  --muted: #46453f; /* derivado */
+  --muted-foreground: #b0c2c2; /* Grisalho */
+  --accent: #b0c2c2; /* Grisalho */
+  --accent-foreground: #373634;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.922 0 0);            /* neutro, sem azul */
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --border: rgb(176 194 194 / 20%); /* Grisalho translúcido */
+  --input: rgb(176 194 194 / 28%);
+  --ring: #e4fe65; /* Verde */
+  --chart-1: #e4fe65; /* Verde */
+  --chart-2: #b0c2c2; /* Grisalho */
+  --chart-3: #7d8a8a; /* derivado */
+  --chart-4: #3f495a; /* Marinho */
+  --chart-5: #efefef; /* Branco Lunar */
+  --sidebar: #2e2d2c; /* derivado: Carvão escurecido */
+  --sidebar-foreground: #efefef;
+  --sidebar-primary: #e4fe65; /* Verde */
+  --sidebar-primary-foreground: #373634;
+  --sidebar-accent: #b0c2c2; /* Grisalho */
+  --sidebar-accent-foreground: #373634;
+  --sidebar-border: rgb(176 194 194 / 20%);
+  --sidebar-ring: #e4fe65;
 }
 
 @layer base {
@@ -2041,19 +2284,35 @@ O scaffold gera a base do shadcn (Tailwind v4); a Onda 2B garante exatamente est
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Respeita quem prefere menos movimento: desliga animações de entrada/saída */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 ```
 
-Tokens `--chart-*` do shadcn podem permanecer (não usados).
-
 ### 9.3 Tipografia
 
-- `src/app/layout.tsx`: `const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" })`; `<body className={`${inter.variable} font-sans antialiased`}>`. Remover Geist do scaffold.
+- `src/app/layout.tsx`: `IBM_Plex_Mono({ variable: "--font-plex", subsets: ["latin"], weight: ["300","400","500","600","700"], display: "swap" })` e `Cormorant_Garamond({ variable: "--font-cormorant", subsets: ["latin"], weight: ["500","600","700"], display: "swap" })`. As duas variáveis ficam no `<html>` (para que portais como dialog, sheet e tooltip herdem a fonte) e no `<body className="... font-sans antialiased">`. `--font-sans`, `--font-mono` e `--font-heading` apontam para a IBM Plex Mono; `--font-display` para a Cormorant (uso moderado, só em `CabecalhoPagina`).
+- O Storybook (`.storybook/preview.tsx`) carrega as mesmas duas fontes; a story `Fundamentos/Tipografia` mostra pesos e hierarquia.
 - Escala:
 
 | Uso | Classes |
 |---|---|
-| Título de página (`h1`) | `text-2xl md:text-3xl font-semibold tracking-tight` |
+| Título de página (`h1`) | `font-display` (Cormorant) `text-2xl md:text-3xl font-semibold tracking-tight` |
+| Número da persona | `text-4xl font-bold text-primary tabular-nums` |
+| Título do card de persona | `text-lg font-bold` |
+| Frase de destaque da persona | `text-sm font-medium text-primary` |
 | Título de bloco (`h2`) | `text-base font-semibold` |
 | Rótulo de seção (sidebar, selo de seção) | `text-xs font-medium uppercase tracking-wider text-muted-foreground` |
 | Título de card | `text-sm font-medium` |
@@ -2087,7 +2346,7 @@ Contraste mínimo 4,5:1 nos dois temas (os pares acima atendem).
 
 ## 10. Agentes e skills
 
-Arquivos, sem UI na Fase 1. Agentes podem (a) usar a API (preferido quando o app está rodando: valida e faz merge) ou (b) editar `content/**/*.md` diretamente e rodar `npm run content:validate` depois.
+As definições de agentes e skills são arquivos (`agents/`, `skills/`). Para ler e escrever o **contexto do negócio**, agentes usam a API (`/api/context`): ela valida, faz merge e grava no Supabase. Editar `content/**/*.md` não altera o app (esses arquivos são backup e seed).
 
 ### 10.1 `AGENTS.md` (raiz) — estrutura obrigatória
 
@@ -2098,7 +2357,7 @@ Arquivos, sem UI na Fase 1. Agentes podem (a) usar a API (preferido quando o app
 (2–3 frases: BusinessOS, conteúdo em content/<secao>/<pagina>.md, mesmo conteúdo da UI.)
 
 ## Mapa de documentos
-(Tabela com os 12 ids, título e descrição — copiar da navegação.)
+(Tabela com os 13 ids, título e descrição — copiar da navegação.)
 
 ## Como ler
 - API: GET http://127.0.0.1:3000/api/context  (?format=md para prompt; ?ids=a,b; ?secao=x; ?definicoes=1)
@@ -2228,7 +2487,7 @@ Segue o formato padrão de skills (compatível com Claude Code): front matter co
 ```markdown
 ---
 name: contexto-businessos
-description: Lê e escreve o contexto do negócio no BusinessOS (API /api/context ou arquivos content/). Use sempre que precisar consultar ou atualizar páginas como Objetivo, Perfil de Cliente Ideal, Oferta ou Fluxo de Caixa.
+description: Lê e escreve o contexto do negócio no BusinessOS (API /api/context). Use sempre que precisar consultar ou atualizar páginas como Objetivo, Perfil de Cliente Ideal, Oferta ou Fluxo de Caixa.
 ---
 
 # Contexto BusinessOS
@@ -2237,7 +2496,7 @@ description: Lê e escreve o contexto do negócio no BusinessOS (API /api/contex
 - Tudo, pronto para prompt: `curl -s "http://127.0.0.1:3000/api/context?format=md"`
 - Só alguns documentos: `curl -s "http://127.0.0.1:3000/api/context?ids=direcao/oferta,validacao/oferta&format=md"`
 - Um documento com o schema: `curl -s http://127.0.0.1:3000/api/context/direcao/oferta` → `documento` + `definicao`
-- Sem o app rodando: ler `content/<secao>/<pagina>.md`.
+- Não leia `content/*.md` como fonte: o conteúdo vivo está no banco; use a API.
 
 ## Escrever
 1. Faça GET do documento e guarde `documento.atualizado_em`.
@@ -2256,152 +2515,99 @@ Siga o AGENTS.md: não apagar conteúdo humano, identificar-se, escrever só nos
 
 ---
 
-## 11. Supabase (futuro — Fase 3)
+## 11. Supabase (armazenamento atual)
 
-Nada é instalado na Fase 1. Esta seção fixa o destino para que a troca não mude UI nem API.
+Decisão: [ADR 0001](./decisions/0001-banco-de-dados-supabase-em-vez-de-markdown.md). O conteúdo vive no Supabase (projeto "BusinessOS", ref `hhqdynsttdhnllmgrddu`, Postgres 17, região us-east-1). A fonte da verdade do esquema são as migrations em `supabase/migrations/`; o SQL abaixo é um resumo de referência. Esta seção substitui o esquema antigo da v1.1 (workspaces, membros, `document_versions`), que não foi adotado: o modelo é **um dono por linha** (`user_id`), sem workspaces nem papéis.
 
-### 11.1 Esquema SQL
+### 11.1 Tabelas (todas em `public`, todas com RLS)
+
+| Tabela | Chave | Colunas principais |
+|---|---|---|
+| `perfis` | `id` (uuid, FK `auth.users`) | `nome`, `papel` (`admin` \| `usuario`, padrão `usuario`), `criado_em`. Criada por trigger no cadastro; o usuário só altera `nome` |
+| `documentos` | `(user_id, id)` | `id` = `<secao>/<pagina>`, `secao`, `pagina`, `status`, `atualizado_em`, `atualizado_por`, `tags text[]`, `relacionados text[]`, `campos jsonb`, `itens jsonb`, `corpo text`, `extras jsonb` |
+| `oportunidades` | `id` (uuid) | `user_id`, `dados jsonb`, `criado_em`, `atualizado_em` |
+| `tarefas` | `(user_id, id text)` | `dados jsonb`, `criado_em`, `atualizado_em` |
+| `arquivos` | `id` (uuid) | `user_id`, `caminho` (único), `nome_original`, `mime`, `tamanho`, `doc_id` (opcional), `criado_em` |
+
+- **Título, descrição e estágio não são colunas**: continuam derivados do código (`navigation.ts` e schemas), como o `save` do repositório em arquivo já faz.
+- **Documento ausente = template vazio** (`criarTemplate`), então um usuário novo vê cards vazios sem seed.
+- `atualizado_em` é mantido por trigger (`definir_atualizado_em`) e é a base do controle de conflito (`esperado_atualizado_em`).
 
 ```sql
--- Espaços de trabalho (um negócio = um workspace) e seus membros.
-create table public.workspaces (
-  id uuid primary key default gen_random_uuid(),
-  nome text not null,
-  criado_em timestamptz not null default now()
-);
-
-create table public.workspace_members (
-  workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade,
-  papel text not null check (papel in ('dona', 'editor', 'leitor')),
-  primary key (workspace_id, user_id)
-);
-
--- Um documento por (workspace, id da navegação). Espelha o ContentDoc.
-create table public.documents (
-  workspace_id uuid not null references public.workspaces(id) on delete cascade,
-  doc_id text not null check (doc_id ~ '^[a-z0-9-]+/[a-z0-9-]+$'),
+create table public.documentos (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  id text not null,
   secao text not null,
   pagina text not null,
-  titulo text not null,
-  descricao text not null default '',
-  estagio text not null default 'para-quem-esta-comecando',
-  status text not null default 'vazio'
+  status text not null default 'rascunho'
     check (status in ('vazio', 'rascunho', 'em-validacao', 'validado')),
+  atualizado_em timestamptz not null default now(),
+  atualizado_por text not null default 'humano',
   tags text[] not null default '{}',
   relacionados text[] not null default '{}',
-  campos jsonb not null default '{}'::jsonb check (jsonb_typeof(campos) = 'object'),
-  itens jsonb not null default '[]'::jsonb check (jsonb_typeof(itens) = 'array'),
+  campos jsonb not null default '{}',
+  itens jsonb not null default '[]',
   corpo text not null default '',
-  extras jsonb not null default '{}'::jsonb,
-  atualizado_em timestamptz not null default now(),
-  atualizado_por text not null
-    check (atualizado_por ~ '^(humano|agente:[a-z0-9][a-z0-9-]{0,62})$'),
-  versao integer not null default 1,
-  primary key (workspace_id, doc_id),
-  check (doc_id = secao || '/' || pagina)
+  extras jsonb not null default '{}',
+  primary key (user_id, id),
+  constraint documentos_id_confere check (id = secao || '/' || pagina)
 );
-
--- Histórico: cada UPDATE guarda a versão anterior.
-create table public.document_versions (
-  id bigint generated always as identity primary key,
-  workspace_id uuid not null,
-  doc_id text not null,
-  versao integer not null,
-  dados jsonb not null,            -- linha completa anterior (to_jsonb(old))
-  atualizado_em timestamptz not null,
-  atualizado_por text not null,
-  arquivado_em timestamptz not null default now(),
-  unique (workspace_id, doc_id, versao),
-  foreign key (workspace_id, doc_id)
-    references public.documents(workspace_id, doc_id) on delete cascade
-);
-
-create index document_versions_doc_idx
-  on public.document_versions (workspace_id, doc_id, versao desc);
-
--- Gatilho: arquiva a versão anterior e incrementa a versão.
-create or replace function public.arquivar_versao_documento()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  insert into public.document_versions
-    (workspace_id, doc_id, versao, dados, atualizado_em, atualizado_por)
-  values
-    (old.workspace_id, old.doc_id, old.versao, to_jsonb(old), old.atualizado_em, old.atualizado_por);
-  new.versao := old.versao + 1;
-  return new;
-end;
-$$;
-
-create trigger documents_arquivar_versao
-  before update on public.documents
-  for each row execute function public.arquivar_versao_documento();
 ```
 
-### 11.2 RLS proposta
+### 11.2 RLS: "dono vê e edita só o que é seu"
 
 ```sql
-alter table public.workspaces enable row level security;
-alter table public.workspace_members enable row level security;
-alter table public.documents enable row level security;
-alter table public.document_versions enable row level security;
-
--- Helper: o usuário atual tem um destes papéis no workspace?
-create or replace function public.tem_papel(ws uuid, papeis text[])
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1 from public.workspace_members m
-    where m.workspace_id = ws
-      and m.user_id = (select auth.uid())
-      and m.papel = any (papeis)
-  );
-$$;
-
-create policy "membros veem o workspace" on public.workspaces
-  for select to authenticated using (public.tem_papel(id, array['dona','editor','leitor']));
-
-create policy "membros veem membros" on public.workspace_members
-  for select to authenticated using (public.tem_papel(workspace_id, array['dona','editor','leitor']));
-create policy "dona gerencia membros" on public.workspace_members
-  for all to authenticated
-  using (public.tem_papel(workspace_id, array['dona']))
-  with check (public.tem_papel(workspace_id, array['dona']));
-
-create policy "membros leem documentos" on public.documents
-  for select to authenticated using (public.tem_papel(workspace_id, array['dona','editor','leitor']));
-create policy "editores criam documentos" on public.documents
-  for insert to authenticated with check (public.tem_papel(workspace_id, array['dona','editor']));
-create policy "editores alteram documentos" on public.documents
-  for update to authenticated
-  using (public.tem_papel(workspace_id, array['dona','editor']))
-  with check (public.tem_papel(workspace_id, array['dona','editor']));
-create policy "dona remove documentos" on public.documents
-  for delete to authenticated using (public.tem_papel(workspace_id, array['dona']));
-
-create policy "membros leem versões" on public.document_versions
-  for select to authenticated using (public.tem_papel(workspace_id, array['dona','editor','leitor']));
--- Sem policy de insert/update/delete em document_versions: só o gatilho (security definer) escreve.
+alter table public.documentos enable row level security;
+-- Repetido para oportunidades, tarefas e arquivos (perfis usa id = auth.uid()):
+create policy documentos_select on public.documentos for select to authenticated
+  using ((select auth.uid()) = user_id);
+create policy documentos_insert on public.documentos for insert to authenticated
+  with check ((select auth.uid()) = user_id);
+create policy documentos_update on public.documentos for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy documentos_delete on public.documentos for delete to authenticated
+  using ((select auth.uid()) = user_id);
 ```
 
-Agentes na Fase 3: continuam usando `/api/context` (servidor). O servidor autentica o agente por token próprio (tabela futura `agent_tokens` com hash, `workspace_id`, `nome`, `escreve text[]`) e acessa o banco com a **sessão do usuário dono do token** ou com a service role **restrita no código** ao `workspace_id` do token — e passa a impor `escreve` (403 fora do escopo).
+- Nenhuma policy para `anon`; `revoke all` das tabelas do app para `anon`.
+- `perfis`: sem insert/delete para o usuário; `grant update (nome)` apenas (impede escalar o próprio `papel`).
+- Funções `security definer` (ex.: `criar_perfil_novo_usuario`) com `set search_path = ''` e sem `execute` para `anon`/`authenticated`.
 
-### 11.3 Troca do repositório
+### 11.3 Storage
 
-- `SupabaseContentRepository implements ContentRepository` em `src/lib/content/supabase-repository.ts`, construído com um client `@supabase/ssr` (server) e o `workspaceId` da sessão.
-- `list()` → `select * from documents where workspace_id = $1`, completa ausentes com `criarTemplate` e ordena por `DOC_IDS`. `get(id)` → mesma validação de id + `maybeSingle()`; ausente → template. `save(doc)` → `upsert` (on conflict `(workspace_id, doc_id)`), mapeando `ContentDoc` ↔ colunas 1:1 (`id` ↔ `doc_id`).
-- Concorrência: a trava em memória do serviço não vale entre instâncias. O serviço passa a usar `esperadoAtualizadoEm` sempre: `update ... where workspace_id = $1 and doc_id = $2 and atualizado_em = $3`; 0 linhas → `CONFLITO`. (Por isso a interface já trata conflito por `atualizado_em`.)
-- `getContentRepository()` escolhe pela env `BUSINESSOS_STORAGE=supabase`. UI, Server Actions, Route Handlers, schemas e exportação Markdown **não mudam**: dependem só de `ContentDoc` e da interface.
-- Migração: script `scripts/migrar-para-supabase.ts` lê `content/` com o `FileSystemContentRepository` e faz `upsert` de cada documento.
-- O formato `.md` continua sendo o formato de troca com agentes (`?format=md` e GET/PUT idênticos).
+Bucket **privado** `arquivos`, limite de 25 MB por arquivo, tipos permitidos: `image/png`, `image/jpeg`, `image/webp`, `image/gif`, `application/pdf`, `text/plain` e DOCX (`application/vnd.openxmlformats-officedocument.wordprocessingml.document`). Caminho do objeto: `<user_id>/<uuid>-<nome>`. Policies em `storage.objects` (select, insert, update, delete) liberam só objetos cujo primeiro segmento da pasta é o `auth.uid()` do usuário. A tabela `arquivos` guarda os metadados e a ligação opcional com um documento (`doc_id`). Ainda não há botão de upload na UI.
+
+### 11.4 Clientes e repositório (`src/lib/supabase/`)
+
+| Arquivo | Uso |
+|---|---|
+| `env.ts` | Leitura e validação das variáveis `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
+| `browser.ts` | Cliente do navegador (`@supabase/ssr`), sessão do usuário |
+| `server.ts` | Cliente do servidor com os cookies da sessão (Server Components e Actions); respeita RLS |
+| `admin.ts` | Cliente com a service role, **só servidor e scripts**; ignora RLS |
+| `usuario.ts` | Obtém o usuário da sessão atual |
+
+- `SupabaseContentRepository implements ContentRepository`: `list()` busca os documentos do usuário, completa ausentes com `criarTemplate` e ordena por `DOC_IDS`; `get(id)` valida o id e usa `maybeSingle()`, ausente → template; `save(doc)` faz `upsert` em `(user_id, id)`. `ContentDoc` ↔ colunas 1:1.
+- Concorrência: a trava em memória do serviço não vale entre instâncias. O serviço usa `esperadoAtualizadoEm`: `update ... where user_id = $1 and id = $2 and atualizado_em = $3`; 0 linhas → `CONFLITO`.
+- `getContentRepository()` escolhe por `BUSINESSOS_STORAGE=supabase|fs`; o **padrão é `supabase`**. UI, Server Actions, Route Handlers, schemas e exportação Markdown não mudam: dependem só de `ContentDoc` e da interface.
+- **API de agentes:** `/api/context` e `/api/workflow` continuam exigindo `Authorization: Bearer BUSINESSOS_API_TOKEN` e agem como o usuário `BUSINESSOS_API_USER_ID`, via cliente admin com todas as consultas filtradas por esse `user_id` (a service role ignora RLS, então o filtro é obrigatório no código). Escopo `escreve` por agente e tokens por agente ficam para depois.
+- O formato `.md` continua sendo o de troca/backup (`?format=md`, `exportar-md.ts`) e a fonte da migração.
+
+### 11.5 Scripts
+
+| Script | O que faz |
+|---|---|
+| `npm run admin:criar` | Cria o usuário admin (`papel = 'admin'`). `ADMIN_EMAIL` e `ADMIN_PASSWORD` só na linha de comando, nunca em arquivo |
+| `npm run db:migrar-conteudo` | Importa `content/*.md`, `oportunidades/oportunidades.json` e `workflow/tarefas.json` para o admin. Idempotente (upsert); `--dry-run` mostra o que faria sem gravar |
+
+O 1º usuário (admin) recebe o conteúdo atual. Novos usuários começam com cards vazios.
+
+### 11.6 Pontos de atenção
+
+- **RLS** em toda tabela nova de `public`, sempre; conferir com os advisors do Supabase.
+- **Service role** nunca no navegador nem em `NEXT_PUBLIC_*`.
+- **LGPD:** dados pessoais de leads em us-east-1 (transferência internacional): `04-lgpd-prospeccao.md`.
+- **Histórico de versões** (tabela de versões por gatilho) e **permissões por agente** não existem ainda.
 
 ---
 
@@ -2410,15 +2616,15 @@ Agentes na Fase 3: continuam usando `/api/context` (servidor). O servidor autent
 ### 12.1 Ferramentas
 
 - **Vitest** (`vitest`, ambiente `node`) para testes unitários e de integração da camada de conteúdo e da API. `vitest.config.mts` (ESM) com projeto `unit` (`include: ["src/**/*.test.ts", "scripts/**/*.test.ts"]`, alias `@` → `src`). Se o scaffold já tiver criado um `vitest.config.ts` com projeto de Storybook, **adicionar** o projeto `unit` em `test.projects` em vez de substituir.
-- Cada teste que toca disco usa um diretório temporário (`fs.mkdtemp(path.join(os.tmpdir(), "businessos-"))`) via `BUSINESSOS_CONTENT_DIR` ou o construtor `{ raiz }`, e o remove no `afterEach`.
+- Testes do `SupabaseContentRepository` usam um cliente falso (sem rede). Cada teste do modo `fs` que toca disco usa um diretório temporário (`fs.mkdtemp(path.join(os.tmpdir(), "businessos-"))`) via `BUSINESSOS_CONTENT_DIR` ou o construtor `{ raiz }`, e o remove no `afterEach`.
 - `vi.stubEnv` para `NODE_ENV` e `BUSINESSOS_API_TOKEN`.
 
 ### 12.2 O que testar (mínimo obrigatório)
 
 | Arquivo de teste | Casos |
 |---|---|
-| `navigation.test.ts` | 12 ids na ordem; ids únicos; `ehIdValido` recusa `../x`, `founder/../caixa/erp`, `founder/objetivo.md`, `FOUNDER/objetivo`, `founder%2Fobjetivo`, `""`, `null`; `montarId`; nenhuma seção chamada `api` |
-| `schemas/index.test.ts` | Invariantes da §3.5 para as 12 definições; `criarTemplate` de cada uma passa em `criarSchemaDocumento` |
+| `navigation.test.ts` | 13 ids na ordem; ids únicos; `ehIdValido` recusa `../x`, `founder/../caixa/erp`, `founder/objetivo.md`, `FOUNDER/objetivo`, `founder%2Fobjetivo`, `""`, `null`; `montarId`; nenhuma seção chamada `api` |
+| `schemas/index.test.ts` | Invariantes da §3.5 para as 13 definições; `criarTemplate` de cada uma passa em `criarSchemaDocumento` |
 | `schemas/build.test.ts` | Cada tipo: aceita válidos, recusa inválidos (limites, opção inexistente, data `2026-02-30`); moeda arredonda a 2 casas; `null` limpa para o padrão; coerções da leitura (string numérica, `Date`, string → lista); patch recusa chave desconhecida, `corpo`+`corpo_anexar`, patch vazio |
 | `serializacao.test.ts` | Ida e volta (`desserializar(serializar(doc))` ≡ doc); ordem canônica das chaves; `atualizado_em` sai entre aspas; `extras` preservados; `\n` final; os dois exemplos da §3.8 são lidos sem erro |
 | `merge.test.ts` | Campo não enviado preservado; `null` limpa; upsert de item por id (merge raso, campos não enviados preservados); item sem id ganha id; id novo explícito cria; troca de coleção → erro; `itens_remover` idempotente; `corpo_anexar`; meta do sistema imutável |
@@ -2509,7 +2715,7 @@ Decisões além do arquivo de decisões (nenhuma o contradiz):
 | D1 | `itens` continua array único; itens de coleções diferentes se distinguem por `colecao` | Um campo a mais por item; em troca, suporta páginas com 2 coleções sem mudar o formato decidido |
 | D2 | Salvamento **por página** (rascunho + SaveBar + uma Server Action `salvarDocumento`), com patch mínimo e merge no servidor | Mais estado no cliente; em troca atende RF-13/15/16 e conflitos ficam raros e seguros |
 | D3 | PUT tem semântica de merge (PATCH); `corpo_anexar` e `itens_remover` explícitos | Nome HTTP menos purista; agentes não apagam o que não enviaram |
-| D4 | Conflito por `esperado_atualizado_em` (opcional na API, sempre usado pela UI) → 409 | Exige reenviar; prepara a troca para Supabase |
+| D4 | Conflito por `esperado_atualizado_em` (opcional na API, sempre usado pela UI) → 409 | Exige reenviar; é o que funciona entre instâncias no Supabase |
 | D5 | Leitura tolerante (coerções) / escrita estrita | Arquivos editados à mão quebram menos; API dá erros claros |
 | D6 | `get` de arquivo ausente devolve template sem gravar; arquivos são criados no `save` e pelo `content:seed` | GET da API nunca dá 404 para id válido (difere da leitura literal de RF-28) |
 | D7 | Com `BUSINESSOS_API_TOKEN` definido, ele vale para GET e PUT; em produção sem token a API inteira (não só PUT) responde 403 | Mais restritivo que o mínimo pedido; o contexto tem dados financeiros |
@@ -2521,4 +2727,5 @@ Decisões além do arquivo de decisões (nenhuma o contradiz):
 | D13 | Vitest para testes; `tsx` para scripts | Duas devDependencies a mais |
 | D14 | Componentes recebem callbacks; só as páginas ligam Server Actions | Uma camada a mais de props; Storybook funciona sem servidor |
 | D15 | Moeda gravada como número em reais (2 casas), datas `YYYY-MM-DD`, data-hora ISO UTC; exibição em `America/Sao_Paulo` | Fuso fixo; evita erro de hidratação |
-| D16 | `dev`/`start` presos a `127.0.0.1` | Não acessível pelo celular na rede local na Fase 1 |
+| D16 | `dev`/`start` presos a `127.0.0.1` | Não acessível pelo celular na rede local; a publicação é decisão à parte |
+| D17 | Armazenamento no Supabase, um dono por linha (`user_id`), RLS; `.md` só como backup/seed (ADR 0001) | Dependência de fornecedor e de RLS correta; em troca, multiusuário, anexos e uso fora da máquina local |
