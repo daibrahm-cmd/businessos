@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 import { criarOuGarantirAdmin, validarEmail, validarSenha, type ClienteAdmin } from "./criar-admin";
 
 function clienteFalso(existente: string | null = null) {
-  const chamadas = { criar: 0, papel: [] as string[] };
+  const chamadas = { criar: 0, papel: [] as string[], confirmar: [] as string[] };
   const cliente: ClienteAdmin = {
     buscarUsuarioPorEmail: async () => existente,
+    confirmarUsuario: async (id) => {
+      chamadas.confirmar.push(id);
+    },
     criarUsuario: async () => {
       chamadas.criar += 1;
       return "11111111-1111-4111-8111-111111111111";
@@ -44,11 +47,12 @@ describe("criarOuGarantirAdmin", () => {
     expect(chamadas.criar).toBe(1);
     expect(chamadas.papel).toEqual([r.id]);
   });
-  it("é idempotente: se já existe, só garante o papel", async () => {
+  it("é idempotente: se já existe, confirma o e-mail e garante o papel", async () => {
     const { cliente, chamadas } = clienteFalso("22222222-2222-4222-8222-222222222222");
     const r = await criarOuGarantirAdmin(cliente, "a@b.com", "senha-bem-longa");
     expect(r.criado).toBe(false);
     expect(chamadas.criar).toBe(0);
+    expect(chamadas.confirmar).toEqual(["22222222-2222-4222-8222-222222222222"]);
     expect(chamadas.papel).toEqual(["22222222-2222-4222-8222-222222222222"]);
   });
 });

@@ -51,6 +51,15 @@ export async function cadastrar(_anterior: EstadoAuth, form: FormData): Promise<
     if (error.code === "weak_password") {
       return { campos: { senha: "Senha fraca demais. Use uma senha mais longa e menos previsível." }, valores };
     }
+    // Limite de envio de e-mails: não revela se a conta existe, então pode ser explícito
+    if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+      return {
+        erro: "Muitos pedidos seguidos. Aguarde cerca de um minuto, confira sua caixa de entrada e tente de novo.",
+        valores,
+      };
+    }
+    // Só o código vai para o log do servidor (sem e-mail nem senha), para facilitar o diagnóstico
+    console.error("[cadastro] falha no signUp:", error.code ?? error.status ?? "desconhecido");
     return { erro: "Não foi possível concluir o cadastro. Tente novamente em instantes.", valores };
   }
 

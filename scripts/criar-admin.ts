@@ -13,6 +13,8 @@ export interface ClienteAdmin {
   buscarUsuarioPorEmail(email: string): Promise<string | null>;
   /** Cria o usuário com e-mail já confirmado; devolve o id. */
   criarUsuario(email: string, senha: string): Promise<string>;
+  /** Usuário que já existia (ex.: cadastrado pelo formulário): confirma o e-mail e define a senha informada. */
+  confirmarUsuario(id: string, senha: string): Promise<void>;
   /** Grava perfis.papel = 'admin' para o id (cria o perfil se o gatilho ainda não criou). */
   garantirPapelAdmin(id: string, nome: string): Promise<void>;
 }
@@ -36,7 +38,7 @@ export interface ResultadoAdmin {
   criado: boolean;
 }
 
-/** Idempotente: se o e-mail já existe só garante o papel; senão cria o usuário e depois o papel. */
+/** Idempotente: se o e-mail já existe, confirma o e-mail, define a senha e garante o papel; senão cria o usuário e o papel. */
 export async function criarOuGarantirAdmin(
   cliente: ClienteAdmin,
   email: string,
@@ -47,6 +49,9 @@ export async function criarOuGarantirAdmin(
   if (!id) {
     id = await cliente.criarUsuario(email, senha);
     criado = true;
+  } else {
+    // Já cadastrado pelo formulário e talvez sem confirmar (ex.: limite de e-mails do Supabase).
+    await cliente.confirmarUsuario(id, senha);
   }
   await cliente.garantirPapelAdmin(id, email.split("@")[0]);
   return { id, criado };
@@ -73,6 +78,10 @@ async function criarClienteReal(): Promise<ClienteAdmin> {
       if (error || !data.user) throw new Error(`Falha ao criar o usuário: ${error?.message ?? "sem resposta"}`);
       return data.user.id;
     },
+    async confirmarUsuario(id, senha) {
+      const { error } = await supabase.auth.admin.updateUserById(id, { email_confirm: true, password: senha });
+      if (error) throw new Error(`Falha ao confirmar o usuário existente: ${error.message}`);
+    },
     async garantirPapelAdmin(id, nome) {
       // Upsert: funciona tanto se o gatilho já criou o perfil quanto se ainda não.
       const { error } = await supabase.from("perfis").upsert({ id, nome, papel: "admin" }, { onConflict: "id" });
@@ -86,7 +95,7 @@ async function main(): Promise<void> {
   const senha = validarSenha(process.env.ADMIN_PASSWORD);
   const cliente = await criarClienteReal();
   const { id, criado } = await criarOuGarantirAdmin(cliente, email, senha);
-  process.stdout.write(`${criado ? "Usuário admin criado" : "Usuário já existia; papel admin garantido"}: ${email}\n`);
+  process.stdout.write(`${criado ? "Usuário admin criado" : "Usuário já existia; e-mail confirmado, senha definida e papel admin garantido"}: ${email}\n`);
   process.stdout.write(`UUID: ${id}\n\n`);
   process.stdout.write("Copie esta linha para o seu .env.local:\n");
   process.stdout.write(`BUSINESSOS_API_USER_ID=${id}\n`);
