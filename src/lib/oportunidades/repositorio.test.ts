@@ -14,11 +14,13 @@ let pasta: string;
 
 beforeEach(async () => {
   pasta = await fs.mkdtemp(path.join(os.tmpdir(), "oportunidades-"));
+  process.env.BUSINESSOS_STORAGE = "fs"; // estes testes cobrem o backend de arquivo
   process.env.BUSINESSOS_OPORTUNIDADES_FILE = path.join(pasta, "oportunidades.json");
 });
 
 afterEach(async () => {
   delete process.env.BUSINESSOS_OPORTUNIDADES_FILE;
+  delete process.env.BUSINESSOS_STORAGE;
   await fs.rm(pasta, { recursive: true, force: true });
 });
 
@@ -32,12 +34,20 @@ describe("oportunidades", () => {
     expect(o.estagio).toBe("novo");
     expect(o.valor).toBe(1500);
 
-    const movida = await salvarOportunidade({ id: o.id, estagio: "proposta", valor: null, empresa: "" });
-    expect(movida.estagio).toBe("proposta");
+    const movida = await salvarOportunidade({ id: o.id, estagio: "qualificado", valor: null, empresa: "" });
+    expect(movida.estagio).toBe("qualificado");
     expect(movida.valor).toBeUndefined();
     expect(movida.empresa).toBeUndefined();
     expect(movida.lead).toBe("Ana");
     expect(await lerOportunidades()).toHaveLength(1);
+  });
+
+  it("guarda o vínculo com o lead e o mantém ao mover de coluna", async () => {
+    const o = await salvarOportunidade({ lead: "Ana", titulo: "Mentoria", lead_id: "abc123", estagio: "contatado" });
+    expect(o.lead_id).toBe("abc123");
+    const movida = await salvarOportunidade({ id: o.id, estagio: "em-negociacao" });
+    expect(movida.lead_id).toBe("abc123");
+    expect(movida.estagio).toBe("em-negociacao");
   });
 
   it("criar sem lead/título ou atualizar id inexistente falha", async () => {

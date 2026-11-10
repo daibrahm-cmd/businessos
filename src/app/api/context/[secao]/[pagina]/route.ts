@@ -11,6 +11,7 @@ import {
   respostaJson,
   respostaMarkdown,
 } from "@/lib/content/api/respostas";
+import { comContextoApi } from "@/lib/content/repository";
 import { montarId } from "@/lib/content/navigation";
 import { obterDefinicao } from "@/lib/content/schemas";
 import { serializar } from "@/lib/content/serializacao";
@@ -25,7 +26,7 @@ function naoEncontrado(): Response {
   return respostaErro("NAO_ENCONTRADO", "Documento não encontrado.");
 }
 
-export async function GET(req: Request, { params }: Contexto): Promise<Response> {
+async function tratarGET(req: Request, { params }: Contexto): Promise<Response> {
   const negado = verificarAcesso(req);
   if (negado) return negado;
 
@@ -47,7 +48,7 @@ export async function GET(req: Request, { params }: Contexto): Promise<Response>
   }
 }
 
-export async function PUT(req: Request, { params }: Contexto): Promise<Response> {
+async function tratarPUT(req: Request, { params }: Contexto): Promise<Response> {
   // 1. Guarda de acesso.
   const negado = verificarAcesso(req);
   if (negado) return negado;
@@ -94,3 +95,7 @@ export async function PUT(req: Request, { params }: Contexto): Promise<Response>
     return respostaDeErro(erro);
   }
 }
+
+// Agentes (Bearer) rodam com o contexto "api": chave de serviço + BUSINESSOS_API_USER_ID.
+export const GET = (req: Request, ctx: Contexto): Promise<Response> => comContextoApi(() => tratarGET(req, ctx));
+export const PUT = (req: Request, ctx: Contexto): Promise<Response> => comContextoApi(() => tratarPUT(req, ctx));

@@ -14,7 +14,7 @@ let raiz: string;
 beforeEach(async () => {
   raiz = await fs.mkdtemp(path.join(os.tmpdir(), "businessos-"));
   vi.stubEnv("BUSINESSOS_CONTENT_DIR", raiz);
-  vi.stubEnv("BUSINESSOS_STORAGE", "");
+  vi.stubEnv("BUSINESSOS_STORAGE", "fs");
 });
 
 afterEach(async () => {
@@ -33,10 +33,10 @@ async function erroDe(p: Promise<unknown>): Promise<ErroConteudo> {
 }
 
 describe("repositório padrão", () => {
-  it("usa BUSINESSOS_CONTENT_DIR e recusa supabase", () => {
+  it("usa BUSINESSOS_CONTENT_DIR no modo fs e recusa armazenamento desconhecido", () => {
     expect((getContentRepository() as unknown as { raiz: string }).raiz).toBe(path.resolve(raiz));
-    vi.stubEnv("BUSINESSOS_STORAGE", "supabase");
-    expect(() => getContentRepository()).toThrow("Armazenamento Supabase ainda não implementado.");
+    vi.stubEnv("BUSINESSOS_STORAGE", "mongo");
+    expect(() => getContentRepository()).toThrow("Armazenamento desconhecido: mongo.");
   });
 });
 
@@ -178,5 +178,16 @@ describe("atualizarDocumento", () => {
 describe("listarDocumentos", () => {
   it("devolve 13 documentos", async () => {
     expect(await listarDocumentos()).toHaveLength(13);
+  });
+});
+
+describe("fábrica com Supabase", () => {
+  it("API de agentes sem BUSINESSOS_API_USER_ID dá erro claro", async () => {
+    vi.stubEnv("BUSINESSOS_STORAGE", "supabase");
+    vi.stubEnv("BUSINESSOS_API_USER_ID", "");
+    const repo = getContentRepository({ contexto: "api" });
+    const erro = await erroDe(repo.list());
+    expect(erro.codigo).toBe("ERRO_INTERNO");
+    expect(erro.message).toContain("BUSINESSOS_API_USER_ID");
   });
 });

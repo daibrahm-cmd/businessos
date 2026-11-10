@@ -28,7 +28,7 @@ export async function GET(req: Request): Promise<Response> {
   const negado = verificarAcesso(req);
   if (negado) return negado;
   try {
-    const [tarefas, agentes] = await Promise.all([lerTarefas(), listarAgentes()]);
+    const [tarefas, agentes] = await Promise.all([lerTarefas({ origem: "api" }), listarAgentes()]);
     return respostaJson({ tarefas, agentes });
   } catch (erro) {
     return erroDoWorkflow(erro);
@@ -58,7 +58,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   try {
-    const tarefa = await salvarTarefa(r.data);
+    const tarefa = await salvarTarefa(r.data, new Date(), { origem: "api" });
     return respostaJson({ tarefa });
   } catch (erro) {
     return erroDoWorkflow(erro);

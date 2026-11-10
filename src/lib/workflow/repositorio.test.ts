@@ -11,6 +11,7 @@ let pasta: string;
 
 beforeEach(async () => {
   pasta = await fs.mkdtemp(path.join(os.tmpdir(), "businessos-wf-"));
+  vi.stubEnv("BUSINESSOS_STORAGE", "fs"); // estes testes cobrem o backend de arquivo
   vi.stubEnv("BUSINESSOS_WORKFLOW_FILE", path.join(pasta, "workflow", "tarefas.json"));
   vi.stubEnv("BUSINESSOS_AGENTS_DIR", path.join(pasta, "agents"));
   vi.stubEnv("BUSINESSOS_API_TOKEN", "");

@@ -10,6 +10,7 @@ import {
   respostaJson,
   respostaMarkdown,
 } from "@/lib/content/api/respostas";
+import { comContextoApi } from "@/lib/content/repository";
 import { exportarMarkdown } from "@/lib/content/exportar-md";
 import { ESTAGIO_ATUAL, ehIdValido, ehSecaoValida, type DocId } from "@/lib/content/navigation";
 import { DEFINICOES, type PageDefinition } from "@/lib/content/schemas";
@@ -18,7 +19,7 @@ import { listarDocumentos } from "@/lib/content/servico";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function GET(req: Request): Promise<Response> {
+async function tratarGET(req: Request): Promise<Response> {
   const negado = verificarAcesso(req);
   if (negado) return negado;
 
@@ -69,3 +70,6 @@ export async function GET(req: Request): Promise<Response> {
     return respostaDeErro(erro);
   }
 }
+
+// Agentes (Bearer) rodam com o contexto "api": chave de serviço + BUSINESSOS_API_USER_ID.
+export const GET = (req: Request): Promise<Response> => comContextoApi(() => tratarGET(req));

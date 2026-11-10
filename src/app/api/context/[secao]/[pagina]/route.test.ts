@@ -14,7 +14,7 @@ let raiz: string;
 beforeEach(async () => {
   raiz = await fs.mkdtemp(path.join(os.tmpdir(), "businessos-"));
   vi.stubEnv("BUSINESSOS_CONTENT_DIR", raiz);
-  vi.stubEnv("BUSINESSOS_STORAGE", "");
+  vi.stubEnv("BUSINESSOS_STORAGE", "fs");
   vi.stubEnv("BUSINESSOS_API_TOKEN", "");
   vi.stubEnv("NODE_ENV", "test");
   await fs.mkdir(path.join(raiz, "validacao"), { recursive: true });
