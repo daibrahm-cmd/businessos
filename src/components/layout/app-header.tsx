@@ -25,9 +25,11 @@ export interface ItemTrilha {
 
 export interface AppHeaderProps {
   trilha: ItemTrilha[]
+  /** Ações extras à direita, antes do seletor de tema (ex.: abrir a lista de conversas). */
+  acoes?: React.ReactNode
 }
 
-export function AppHeader({ trilha }: AppHeaderProps) {
+export function AppHeader({ trilha, acoes }: AppHeaderProps) {
   const ultimo = trilha.length - 1
 
   return (
@@ -58,6 +60,7 @@ export function AppHeader({ trilha }: AppHeaderProps) {
         </BreadcrumbList>
       </Breadcrumb>
 
+      {acoes}
       <ThemeToggle className="-mr-1" />
     </header>
   )

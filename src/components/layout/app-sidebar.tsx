@@ -14,6 +14,7 @@ import {
   Footprints,
   House,
   LogOut,
+  Sparkles,
   Target,
   UserRound,
   Users,
@@ -51,6 +52,9 @@ interface ItemMenu {
   /** Página de conteúdo (mostra o pontinho de status). */
   id?: DocId
 }
+
+/** Principal: o chat com a IA (ativo em /principal e /principal/[id]). */
+const ITENS_PRINCIPAL: readonly ItemMenu[] = [{ href: "/principal", rotulo: "Principal", icone: Sparkles }]
 
 /** Geral: telas fora das seções. */
 const ITENS_GERAL: readonly ItemMenu[] = [
@@ -119,7 +123,8 @@ function Grupo({
   recolhivel,
 }: {
   recolhivel?: { aberto: boolean; alternar: () => void }
-  titulo: string
+  /** Sem título, o grupo é só a lista de itens (usado pelo item Principal, no topo). */
+  titulo?: string
   itens: readonly ItemMenu[]
   ativo: (i: ItemMenu) => boolean
   aoNavegar: () => void
@@ -129,8 +134,8 @@ function Grupo({
   const classeBotao =
     "h-11 gap-2.5 text-[11.5px] md:h-8 data-active:bg-[#3F495A] data-active:text-[#EFEFEF] dark:data-active:bg-[#B0C2C2] dark:data-active:text-[#373634]"
   return (
-    <SidebarGroup className="px-2 py-0">
-      {recolhivel ? (
+    <SidebarGroup className={cn("px-2 py-0", !titulo && "pt-1")}>
+      {!titulo ? null : recolhivel ? (
         // Grupo recolhível: o título é um botão que abre/fecha a lista
         <button
           type="button"
@@ -209,6 +214,11 @@ export function AppSidebar({ statusPorId, usuario }: AppSidebarProps) {
       </SidebarHeader>
 
       <SidebarContent className="gap-1 pb-2">
+        <Grupo
+          itens={ITENS_PRINCIPAL}
+          ativo={(i) => pathname === i.href || pathname.startsWith(`${i.href}/`)}
+          aoNavegar={aoNavegar}
+        />
         <Grupo
           titulo="Geral"
           itens={ITENS_GERAL}

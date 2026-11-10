@@ -54,3 +54,8 @@ export const Mobile: Story = {
   name: "Mobile (sheet)",
   globals: { viewport: { value: "mobile1", isRotated: false } },
 }
+
+export const PrincipalAtivo: Story = {
+  name: "Principal ativo (conversa aberta)",
+  parameters: { nextjs: { appDirectory: true, navigation: { pathname: "/principal/c1" } } },
+}
