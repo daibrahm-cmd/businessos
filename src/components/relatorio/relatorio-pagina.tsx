@@ -2,7 +2,7 @@
 // blocos por grupo, coleções em cards). Só exibe; a edição fica no modal (ver pagina-relatorio.tsx).
 import * as React from "react"
 
-import { Anel, Bloco, CARD, Indicador, ROTULO } from "@/components/relatorio/pecas"
+import { Bloco, CARD, Indicador } from "@/components/relatorio/pecas"
 import { CabecalhoPagina } from "@/components/relatorio/cabecalho-pagina"
 import { NotasEstruturadas } from "@/components/relatorio/notas-estruturadas"
 import { CelulaItem } from "@/components/relatorio/celula-item"
@@ -15,7 +15,6 @@ import { autorLegivel, estaVazio, formatarDataCurta, nuncaSalvo } from "@/compon
 import { gruposDeCampos, type PageEditorProps } from "@/components/editor/page-editor"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { calcularCompletude } from "@/lib/content/completude"
 import type { CollectionDef, FieldDef, PageDefinition } from "@/lib/content/schemas/field-types"
 import type { ContentDoc, Item, ResumoCalculado, ValorCampo } from "@/lib/content/types"
 import { formatarMoeda, formatarNumero } from "@/lib/format"
@@ -364,11 +363,9 @@ function BlocoColecao({
 // ---------- Relatório ----------
 
 export function RelatorioPagina({ documento, definicao, resumos, acoes, onSalvar, acoesDoItem }: RelatorioPaginaProps) {
-  const completude = calcularCompletude(documento, definicao)
   const grupos = gruposDeCampos(definicao.campos)
   // Notas com estrutura (entradas, grupos, "Rótulo: texto") ganham o layout de cartões; o resto continua texto corrido
   const entradasNotas = analisarNotas(documento.corpo)
-  const pendentes = definicao.campos.filter((c) => estaVazio(documento.campos[c.nome])).length
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 md:px-8 md:py-10">
@@ -389,33 +386,6 @@ export function RelatorioPagina({ documento, definicao, resumos, acoes, onSalvar
             : `Atualizado em ${formatarDataCurta(documento.atualizado_em)} por ${autorLegivel(documento.atualizado_por)}`}
         </p>
       </CabecalhoPagina>
-
-      {/* Painel de números */}
-      <Bloco etiqueta="Panorama">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className={cn(CARD, "flex items-center gap-4")}>
-            <Anel percentual={completude.percentual} />
-            <div className="space-y-1">
-              <p className={ROTULO}>Completude</p>
-              <p className="text-4xl leading-none font-bold tabular-nums">
-                {completude.percentual}
-                <span className="text-base font-medium text-muted-foreground">%</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {completude.preenchidos} de {completude.total} itens
-              </p>
-            </div>
-          </div>
-          <Indicador rotulo="Campos pendentes" valor={String(pendentes)} sufixo={`de ${definicao.campos.length}`} />
-          {(definicao.colecoes ?? []).map((c) => (
-            <Indicador
-              key={c.nome}
-              rotulo={c.rotulo}
-              valor={String(documento.itens.filter((i) => i.colecao === c.nome).length)}
-            />
-          ))}
-        </div>
-      </Bloco>
 
       {/* Campos, um bloco por grupo temático */}
       {grupos.map((grupo, i) => (
