@@ -13,6 +13,7 @@ import {
   FlaskConical,
   Footprints,
   House,
+  LogOut,
   Target,
   UserRound,
   Users,
@@ -21,10 +22,12 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { sair } from "@/app/(auth)/acoes"
 import { ROTULOS_STATUS } from "@/components/cards/status-badge"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -77,7 +80,15 @@ const ITENS_SISTEMA: readonly ItemMenu[] = [
   { href: "/agentes", rotulo: "Agentes", icone: Bot },
 ]
 
+export interface UsuarioSidebar {
+  nome: string
+  email: string
+  papel: "admin" | "usuario"
+}
+
 export interface AppSidebarProps {
+  /** Usuário logado (nome, e-mail e botão Sair no rodapé). Ausente = sem rodapé. */
+  usuario?: UsuarioSidebar
   /** Status de cada página (pontinho à direita). Ausente = sem indicador. */
   statusPorId?: Partial<Record<DocId, Status>>
 }
@@ -152,7 +163,7 @@ function Grupo({
   )
 }
 
-export function AppSidebar({ statusPorId }: AppSidebarProps) {
+export function AppSidebar({ statusPorId, usuario }: AppSidebarProps) {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
 
@@ -227,6 +238,28 @@ export function AppSidebar({ statusPorId }: AppSidebarProps) {
           }}
         />
       </SidebarContent>
+
+      {usuario && (
+        <SidebarFooter className="gap-2 border-t border-sidebar-border px-4 py-3">
+          <div className="min-w-0">
+            <p className="truncate text-[11.5px] font-medium">{usuario.nome}</p>
+            <p className="truncate text-[10.5px] text-muted-foreground">
+              {usuario.email}
+              {usuario.papel === "admin" && " · admin"}
+            </p>
+          </div>
+          {/* Server Action: encerra a sessão e volta para /login */}
+          <form action={sair}>
+            <button
+              type="submit"
+              className="flex h-11 w-full items-center gap-2.5 rounded-md px-2 text-[11.5px] text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring md:h-8"
+            >
+              <LogOut aria-hidden className="size-3.5 shrink-0" />
+              Sair
+            </button>
+          </form>
+        </SidebarFooter>
+      )}
 
       <SidebarRail />
     </Sidebar>
