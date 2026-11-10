@@ -32,6 +32,11 @@ export function comContextoApi<T>(fn: () => Promise<T>): Promise<T> {
   return contextoAtual.run("api", fn);
 }
 
+/** Contexto em vigor nesta chamada ("sessao" se ninguém usou comContextoApi). */
+export function contextoDoRepositorio(): ContextoRepositorio {
+  return contextoAtual.getStore() ?? "sessao";
+}
+
 /** Usuário dono dos dados da API de agentes. Erro claro se não configurado. */
 export function usuarioDaApi(): string {
   const id = process.env.BUSINESSOS_API_USER_ID?.trim();

@@ -47,6 +47,66 @@ export type Database = {
         }
         Relationships: []
       }
+      conhecimento: {
+        Row: {
+          conteudo: string
+          criado_em: string
+          embedding: string
+          hash: string
+          id: string
+          origem_id: string
+          origem_tipo: string
+          trecho_indice: number
+          usuario_id: string
+        }
+        Insert: {
+          conteudo: string
+          criado_em?: string
+          embedding: string
+          hash: string
+          id?: string
+          origem_id: string
+          origem_tipo: string
+          trecho_indice?: number
+          usuario_id: string
+        }
+        Update: {
+          conteudo?: string
+          criado_em?: string
+          embedding?: string
+          hash?: string
+          id?: string
+          origem_id?: string
+          origem_tipo?: string
+          trecho_indice?: number
+          usuario_id?: string
+        }
+        Relationships: []
+      }
+      conversas: {
+        Row: {
+          atualizado_em: string
+          criado_em: string
+          id: string
+          titulo: string
+          usuario_id: string
+        }
+        Insert: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          titulo?: string
+          usuario_id: string
+        }
+        Update: {
+          atualizado_em?: string
+          criado_em?: string
+          id?: string
+          titulo?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       documentos: {
         Row: {
           atualizado_em: string
@@ -94,6 +154,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      mensagens: {
+        Row: {
+          conteudo: string
+          conversa_id: string
+          criado_em: string
+          fontes: Json
+          id: string
+          papel: string
+          usuario_id: string
+        }
+        Insert: {
+          conteudo: string
+          conversa_id: string
+          criado_em?: string
+          fontes?: Json
+          id?: string
+          papel: string
+          usuario_id: string
+        }
+        Update: {
+          conteudo?: string
+          conversa_id?: string
+          criado_em?: string
+          fontes?: Json
+          id?: string
+          papel?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mensagens_conversa_id_fkey"
+            columns: ["conversa_id"]
+            isOneToOne: false
+            referencedRelation: "conversas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       oportunidades: {
         Row: {
@@ -169,7 +267,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      buscar_conhecimento: {
+        Args: { consulta: string; limite?: number }
+        Returns: {
+          conteudo: string
+          origem_id: string
+          origem_tipo: string
+          similaridade: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

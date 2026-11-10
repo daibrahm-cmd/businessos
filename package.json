@@ -15,7 +15,8 @@
     "content:seed": "tsx scripts/seed-conteudo.ts",
     "content:validate": "tsx scripts/validar-conteudo.ts",
     "admin:criar": "tsx --env-file-if-exists=.env.local scripts/criar-admin.ts",
-    "db:migrar-conteudo": "tsx --env-file-if-exists=.env.local scripts/migrar-conteudo.ts"
+    "db:migrar-conteudo": "tsx --env-file-if-exists=.env.local scripts/migrar-conteudo.ts",
+    "conhecimento:reindexar": "tsx --env-file-if-exists=.env.local scripts/reindexar-conhecimento.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

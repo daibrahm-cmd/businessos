@@ -1,6 +1,7 @@
 // src/lib/content/servico.ts
 // Serviço de conteúdo: único caminho de leitura e escrita para UI e API (trava por id + merge + validação).
 // Sem "use cache" aqui: a decisão de cache fica para as rotas (Onda 3).
+import { agendarIndexacaoDocumento } from "@/lib/conhecimento";
 import { ErroConteudo, detalhesDoZod } from "@/lib/content/errors";
 import { ehIdValido } from "@/lib/content/navigation";
 import { calcularCompletude } from "@/lib/content/completude";
@@ -97,6 +98,9 @@ export async function atualizarDocumento(params: {
 
     novo.atualizado_em = new Date().toISOString();
     novo.atualizado_por = params.autor;
-    return repo.save(novo);
+    const salvo = await repo.save(novo);
+    // Atualiza a base de conhecimento em segundo plano: não bloqueia nem quebra o salvamento.
+    agendarIndexacaoDocumento(salvo.id);
+    return salvo;
   });
 }
