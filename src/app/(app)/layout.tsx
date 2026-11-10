@@ -7,6 +7,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import type { DocId } from "@/lib/content/navigation"
 import { listarDocumentos } from "@/lib/content/servico"
 import type { Status } from "@/lib/content/types"
+import { onboardingPendente } from "@/lib/onboarding/estado"
 import { perfilAtual } from "@/lib/supabase/perfil"
 
 // O conteúdo muda fora do app (agentes editam os arquivos): sempre renderizar na hora.
@@ -27,6 +28,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // Guarda: sem sessão válida, volta para o login (o proxy já filtra; aqui é a segunda barreira)
   const perfil = await perfilAtual()
   if (!perfil) redirect("/login")
+  // Primeiro acesso: antes de usar o app, a pessoa responde às perguntas do onboarding.
+  if (await onboardingPendente()) redirect("/onboarding")
 
   // Sidebar aberta por padrão; o cookie guarda a última escolha (escrito pelo SidebarProvider).
   const [armazenamento, statusPorId] = await Promise.all([cookies(), carregarStatus()])

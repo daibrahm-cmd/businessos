@@ -223,18 +223,33 @@ export type Database = {
           id: string
           nome: string | null
           papel: string
+          email_contato: string | null
+          funcionarios: string | null
+          empresa: string | null
+          onboarding_concluido_em: string | null
+          whatsapp: string | null
         }
         Insert: {
           criado_em?: string
           id: string
           nome?: string | null
           papel?: string
+          email_contato?: string | null
+          funcionarios?: string | null
+          empresa?: string | null
+          onboarding_concluido_em?: string | null
+          whatsapp?: string | null
         }
         Update: {
           criado_em?: string
           id?: string
           nome?: string | null
           papel?: string
+          email_contato?: string | null
+          funcionarios?: string | null
+          empresa?: string | null
+          onboarding_concluido_em?: string | null
+          whatsapp?: string | null
         }
         Relationships: []
       }
