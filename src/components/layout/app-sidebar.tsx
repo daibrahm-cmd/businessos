@@ -141,13 +141,13 @@ function Grupo({
           type="button"
           onClick={recolhivel.alternar}
           aria-expanded={recolhivel.aberto}
-          className="flex w-full items-center justify-between rounded-md px-4 pt-3 pb-0.5 text-[10px] font-medium tracking-[0.18em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring"
+          className="flex w-full items-center justify-between rounded-md px-4 pt-3 pb-0.5 text-sm font-medium tracking-[0.14em] text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-sidebar-ring"
         >
           {titulo}
           <ChevronRight aria-hidden className={cn("size-3 transition-transform", recolhivel.aberto && "rotate-90")} />
         </button>
       ) : (
-        <p className="px-4 pt-3 pb-0.5 text-[10px] font-medium tracking-[0.18em] text-muted-foreground uppercase">{titulo}</p>
+        <p className="px-4 pt-3 pb-0.5 text-sm font-medium tracking-[0.14em] text-muted-foreground uppercase">{titulo}</p>
       )}
       <SidebarGroupContent hidden={recolhivel ? !recolhivel.aberto : false}>
         <SidebarMenu>
