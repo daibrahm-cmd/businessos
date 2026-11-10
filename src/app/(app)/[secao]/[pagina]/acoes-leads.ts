@@ -6,6 +6,7 @@ import { z } from "zod"
 
 import { lerDocumento } from "@/lib/content/servico"
 import { lerOportunidades, salvarOportunidade } from "@/lib/oportunidades/repositorio"
+import { estagioSchema, ROTULOS_ESTAGIO } from "@/lib/oportunidades/tipos"
 
 export type ResultadoAcaoItem = { ok: boolean; mensagem: string; href?: string }
 
@@ -29,25 +30,32 @@ export async function criarOportunidadeDoLeadAction(itemId: unknown): Promise<Re
     const contato = dado(lead.contato_nome)
     const nome = contato ?? "Contato a confirmar"
 
-    // Já existe oportunidade para este lead (mesmo contato e empresa)?
+    // Já existe oportunidade para este lead? Pelo vínculo (lead_id) ou, nas antigas, pelo mesmo contato e empresa.
     const mesmo = (a?: string, b?: string) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase()
-    const existente = (await lerOportunidades()).find((o) => mesmo(o.lead, nome) && mesmo(o.empresa, empresa))
+    const existente = (await lerOportunidades()).find(
+      (o) => o.lead_id === lead.id || (!o.lead_id && mesmo(o.lead, nome) && mesmo(o.empresa, empresa)),
+    )
     if (existente) return { ok: false, mensagem: "Este lead já está em Oportunidades.", href: "/oportunidades" }
 
     // Melhor meio de contato disponível: e-mail (sem a observação entre parênteses) ou LinkedIn
     const email = dado(lead.contato_email)?.replace(/\s*\(.*\)\s*$/, "")
     const meioDeContato = email ?? dado(lead.contato_linkedin)
 
+    // O funil das oportunidades usa os mesmos estágios do lead; valor desconhecido cai em "novo"
+    const e = estagioSchema.safeParse(lead.estagio)
+    const estagio = e.success ? e.data : "novo"
+
     await salvarOportunidade({
       lead: nome,
       empresa: empresa || undefined,
       titulo: empresa ? `Primeira conversa · ${empresa}` : "Primeira conversa",
-      estagio: "novo",
+      estagio,
+      lead_id: lead.id,
       contato: meioDeContato,
       proximo_passo: contato ? "Enviar a primeira mensagem" : "Descobrir quem decide e o contato dele",
     })
     revalidatePath("/oportunidades")
-    return { ok: true, mensagem: "Oportunidade criada em Novo lead.", href: "/oportunidades" }
+    return { ok: true, mensagem: `Oportunidade criada em ${ROTULOS_ESTAGIO[estagio]}.`, href: "/oportunidades" }
   } catch (erro) {
     console.error("[leads] criar oportunidade", erro)
     return { ok: false, mensagem: "Não foi possível criar a oportunidade. Tente de novo." }

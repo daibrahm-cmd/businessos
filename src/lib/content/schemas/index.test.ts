@@ -55,7 +55,7 @@ describe("definições de página", () => {
       const onde = `${id}#${col.nome}`;
       expect(col.nome).toMatch(RE_SNAKE);
       expect(col.campos.length, onde).toBeGreaterThanOrEqual(4);
-      expect(col.campos.length, onde).toBeLessThanOrEqual(12);
+      expect(col.campos.length, onde).toBeLessThanOrEqual(14);
       conferirCampos(col.campos, onde);
 
       const campo = (nome: string) => col.campos.find((c) => c.nome === nome);

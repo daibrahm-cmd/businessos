@@ -2,6 +2,7 @@
 
 // Kanban de oportunidades: uma coluna por estágio. Mover = arrastar o cartão (mouse, toque e teclado,
 // via @dnd-kit) ou o seletor no cartão; criar/editar/excluir = modal.
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 import { Plus } from "lucide-react"
@@ -243,6 +244,14 @@ export function QuadroOportunidades({ oportunidades: oportunidadesDoServidor }: 
                       >
                         {textoDoCartao(o)}
                       </button>
+                      {o.lead_id && (
+                        <Link
+                          href="/validacao/leads"
+                          className="inline-block rounded-md border px-1.5 py-0.5 text-[11px] text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        >
+                          Ver lead
+                        </Link>
+                      )}
                       <label className="block">
                         <span className="sr-only">Mover “{o.titulo}” para</span>
                         <select

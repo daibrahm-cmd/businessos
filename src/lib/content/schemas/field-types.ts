@@ -154,6 +154,15 @@ export interface CollectionDef {
    * Sem isto, os itens aparecem em grade de cards.
    */
   lista?: ListaCards;
+  /**
+   * Abas de filtro acima da lista, por um campo `selecao` (ex.: Empresa/CNPJ e Pessoa/CPF).
+   * Item sem valor no campo conta como `padrao`. A aba "Todos" é sempre a primeira.
+   */
+  abas?: {
+    campo: string;
+    padrao: string;
+    opcoes: readonly { valor: string; rotulo: string }[];
+  };
   /** Padrão: 500. */
   maxItens?: number;
 }

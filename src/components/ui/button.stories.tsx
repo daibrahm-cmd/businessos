@@ -3,7 +3,7 @@ import { PlusIcon } from "lucide-react"
 
 import { Button } from "./button"
 
-// Story de prova do setup: valida Tailwind, tokens do shadcn, fonte Inter e tema claro/escuro.
+// Story de prova do setup: valida Tailwind, tokens do shadcn, fonte IBM Plex Mono e tema claro/escuro.
 const meta = {
   title: "UI/Button",
   component: Button,

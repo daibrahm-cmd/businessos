@@ -15,11 +15,13 @@ describe("calcularCompletude", () => {
   it("conta campos preenchidos (texto em branco e lista vazia não contam)", () => {
     const def = obterDefinicao("direcao/perfil-de-cliente-ideal");
     const doc = desserializar(EXEMPLO_PERFIL, def);
-    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 8, total: def.campos.length, percentual: 50 });
+    // Total = campos da página + 1 (a coleção de personas conta como um item)
+    const total = def.campos.length + 1;
+    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 8, total, percentual: 47 });
     doc.campos.quem_e = "   ";
     doc.campos.dores = [];
     doc.campos.quanto_paga_hoje = 0; // zero é um valor
-    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 6, total: def.campos.length, percentual: 38 });
+    expect(calcularCompletude(doc, def)).toEqual({ preenchidos: 6, total, percentual: 35 });
   });
 
   it("coleção conta quando tem ao menos um item", () => {

@@ -21,6 +21,11 @@ export default definirPagina("validacao/leads", {
       campoTitulo: "contato_nome", campoSubtitulo: "empresa", campoDestaque: "estagio",
       ordenarPor: { campo: "entrou", direcao: "desc" },
       // Cards em lista: cargo sob o nome, a nota como texto e os dados curtos no rodapé
+      // Abas CNPJ/CPF: lead sem tipo gravado conta como empresa
+      abas: { campo: "tipo_pessoa", padrao: "empresa", opcoes: [
+        { valor: "empresa", rotulo: "Empresas (CNPJ)" },
+        { valor: "pessoa", rotulo: "Pessoas (CPF)" },
+      ] },
       lista: { apoioTitulo: "contato_cargo", texto: "nota", meta: ["fonte", "fit", "entrou"] },
       campos: [
         { nome: "contato_nome", rotulo: "Nome do contato", tipo: "texto-curto", obrigatorio: true, placeholder: "Ex.: Ana Souza" },
@@ -28,6 +33,12 @@ export default definirPagina("validacao/leads", {
         { nome: "contato_email", rotulo: "E-mail", tipo: "texto-curto", ajuda: "Só e-mail corporativo publicado pela própria empresa." },
         { nome: "contato_linkedin", rotulo: "LinkedIn", tipo: "texto-curto", placeholder: "https://www.linkedin.com/in/...",
           ajuda: "Link do perfil público do contato (ou, sem perfil, da página da empresa)." },
+        { nome: "tipo_pessoa", rotulo: "Tipo", tipo: "selecao", opcoes: [
+          { valor: "empresa", rotulo: "Empresa (CNPJ)" },
+          { valor: "pessoa", rotulo: "Pessoa (CPF)" },
+        ], ajuda: "Empresa (CNPJ) ou pessoa física (CPF). Vazio conta como empresa." },
+        { nome: "documento", rotulo: "CNPJ ou CPF", tipo: "texto-curto", placeholder: "00.000.000/0000-00",
+          ajuda: "CNPJ é público. CPF só se a própria pessoa informou; nunca buscar CPF de terceiros." },
         { nome: "empresa", rotulo: "Empresa", tipo: "texto-curto", obrigatorio: true, placeholder: "Ex.: Metalúrgica Silva" },
         { nome: "nota", rotulo: "Por que é lead", tipo: "texto-curto",
           ajuda: "Uma frase: o sinal que o agente viu (dor, momento da empresa, encaixe com o perfil)." },

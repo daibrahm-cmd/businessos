@@ -42,4 +42,29 @@ export default definirPagina("direcao/perfil-de-cliente-ideal", {
     { nome: "quem_nao_e_cliente", rotulo: "Quem NÃO é seu cliente", tipo: "texto-longo", grupo: "Como compra",
       ajuda: "Perfis parecidos que dão trabalho e não compram." },
   ],
+  colecoes: [
+    {
+      // Cada item é uma persona: um perfil distinto de cliente ideal (ex.: "O Reinventor").
+      nome: "personas", rotulo: "Personas", rotuloItem: "Persona",
+      descricao: "Perfis distintos de cliente ideal. Cada um com quem é, momento, contexto e gatilhos.",
+      campoTitulo: "nome", campoSubtitulo: "arquetipo",
+      lista: { variante: "persona", apoioTitulo: "perfil", texto: "momento", chips: "gatilhos" },
+      campos: [
+        { nome: "nome", rotulo: "Nome da persona", tipo: "texto-curto", obrigatorio: true,
+          placeholder: "Ex.: O Reinventor" },
+        { nome: "arquetipo", rotulo: "Em uma frase", tipo: "texto-curto",
+          ajuda: "O arquétipo entre parênteses.", placeholder: "Ex.: profissional em transição" },
+        { nome: "perfil", rotulo: "Perfil", tipo: "texto-curto",
+          ajuda: "Idade, formação, classe e região.", placeholder: "Ex.: 28–45 anos, ensino superior, classe média urbana" },
+        { nome: "psicografia", rotulo: "Psicografia", tipo: "texto-longo",
+          ajuda: "Como pensa, o que consome, o que admira, onde a identidade é forte ou fraca." },
+        { nome: "momento", rotulo: "Momento", tipo: "texto-longo",
+          ajuda: "Em que ponto da vida ou do negócio ela está agora e o que quer a seguir." },
+        { nome: "contexto", rotulo: "Contexto", tipo: "texto-longo",
+          ajuda: "A situação em volta: rotina, pressões, o que vê acontecer com os outros." },
+        { nome: "gatilhos", rotulo: "Gatilhos", tipo: "lista-texto",
+          ajuda: "Eventos concretos que fazem essa persona agir agora." },
+      ],
+    },
+  ],
 });

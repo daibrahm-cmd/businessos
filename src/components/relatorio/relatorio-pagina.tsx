@@ -14,6 +14,7 @@ import { textoDoValor } from "@/components/cards/field-value"
 import { autorLegivel, estaVazio, formatarDataCurta, nuncaSalvo } from "@/components/cards/valores"
 import { gruposDeCampos, type PageEditorProps } from "@/components/editor/page-editor"
 import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { calcularCompletude } from "@/lib/content/completude"
 import type { CollectionDef, FieldDef, PageDefinition } from "@/lib/content/schemas/field-types"
 import type { ContentDoc, Item, ResumoCalculado, ValorCampo } from "@/lib/content/types"
@@ -285,9 +286,17 @@ function BlocoColecao({
   onSalvar?: PageEditorProps["onSalvar"]
   acao?: AcaoDoItem
 }) {
-  const ordenados = ordenarItens(itens, colecao)
+  const todosOrdenados = ordenarItens(itens, colecao)
+  // Aba ativa ("todos" ou um valor de colecao.abas); item sem valor cai no padrão da aba
+  const [aba, setAba] = React.useState("todos")
+  const abas = colecao.abas
+  const valorDaAba = (i: Item) => {
+    const v = abas ? i[abas.campo] : undefined
+    return typeof v === "string" && v !== "" ? v : (abas?.padrao ?? "")
+  }
+  const ordenados = abas && aba !== "todos" ? todosOrdenados.filter((i) => valorDaAba(i) === aba) : todosOrdenados
   const [abertoId, setAbertoId] = React.useState<string | null>(null)
-  const aberto = ordenados.find((i) => i.id === abertoId)
+  const aberto = todosOrdenados.find((i) => i.id === abertoId)
   const abrir = (id: string) => (onSalvar ? () => setAbertoId(id) : undefined)
   return (
     <Bloco
@@ -301,6 +310,20 @@ function BlocoColecao({
             <Indicador key={r.rotulo} rotulo={r.rotulo} valor={formatarResumo(r)} />
           ))}
         </div>
+      )}
+      {abas && (
+        <Tabs value={aba} onValueChange={setAba}>
+          <TabsList className="h-auto w-full flex-wrap sm:w-fit">
+            {[{ valor: "todos", rotulo: "Todos" }, ...abas.opcoes].map((o) => (
+              <TabsTrigger key={o.valor} value={o.valor} className="px-3 py-1.5">
+                {o.rotulo}{" "}
+                <span className="text-xs tabular-nums opacity-70">
+                  {o.valor === "todos" ? itens.length : itens.filter((i) => valorDaAba(i) === o.valor).length}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       )}
       {ordenados.length === 0 ? (
         <p className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground italic">

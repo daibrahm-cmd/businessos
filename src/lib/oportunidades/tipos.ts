@@ -3,15 +3,16 @@
 import { z } from "zod";
 
 /** Colunas do funil, na ordem do fluxo. */
-export const ESTAGIOS = ["novo", "contato", "proposta", "negociacao", "ganho", "perdido"] as const;
+// Mesmos valores do estágio dos leads (validacao/leads), para a oportunidade herdar o estágio do lead.
+export const ESTAGIOS = ["novo", "contatado", "qualificado", "em-negociacao", "ganho", "perdido"] as const;
 export const estagioSchema = z.enum(ESTAGIOS);
 export type Estagio = z.infer<typeof estagioSchema>;
 
 export const ROTULOS_ESTAGIO: Record<Estagio, string> = {
-  novo: "Novo lead",
-  contato: "Em contato",
-  proposta: "Proposta enviada",
-  negociacao: "Negociação",
+  novo: "Novo",
+  contatado: "Contatado",
+  qualificado: "Qualificado",
+  "em-negociacao": "Em negociação",
   ganho: "Ganho",
   perdido: "Perdido",
 };
@@ -28,6 +29,7 @@ export const oportunidadeSchema = z.strictObject({
   estagio: estagioSchema,
   contato: z.string().trim().max(160).optional(), // e-mail, telefone ou @
   proximo_passo: z.string().trim().max(300).optional(),
+  lead_id: z.string().trim().min(1).max(64).optional(), // id do item em validacao/leads (copiado uma vez)
   criado_em: z.iso.datetime(),
   atualizado_em: z.iso.datetime(),
 });
@@ -43,6 +45,7 @@ export const entradaOportunidadeSchema = z.strictObject({
   estagio: estagioSchema.optional(),
   contato: z.string().trim().max(160).nullable().optional(),
   proximo_passo: z.string().trim().max(300).nullable().optional(),
+  lead_id: z.string().trim().min(1).max(64).nullable().optional(),
 });
 export type EntradaOportunidade = z.infer<typeof entradaOportunidadeSchema>;
 

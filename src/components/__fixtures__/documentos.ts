@@ -224,6 +224,27 @@ export const defPerfilClienteIdeal: PageDefinition = {
       ajuda: "Gasto mensal atual com alternativas ao seu produto.",
     },
   ],
+  colecoes: [
+    {
+      // Espelha a coleção "personas" do schema real (direcao-perfil-de-cliente-ideal.ts)
+      nome: "personas",
+      rotulo: "Personas",
+      rotuloItem: "Persona",
+      descricao: "Perfis distintos de cliente ideal. Cada um com quem é, momento, contexto e gatilhos.",
+      campoTitulo: "nome",
+      campoSubtitulo: "arquetipo",
+      lista: { variante: "persona", apoioTitulo: "perfil", texto: "momento", chips: "gatilhos" },
+      campos: [
+        { nome: "nome", rotulo: "Nome da persona", tipo: "texto-curto", obrigatorio: true, placeholder: "Ex.: O Reinventor" },
+        { nome: "arquetipo", rotulo: "Em uma frase", tipo: "texto-curto" },
+        { nome: "perfil", rotulo: "Perfil", tipo: "texto-curto" },
+        { nome: "psicografia", rotulo: "Psicografia", tipo: "texto-longo" },
+        { nome: "momento", rotulo: "Momento", tipo: "texto-longo" },
+        { nome: "contexto", rotulo: "Contexto", tipo: "texto-longo" },
+        { nome: "gatilhos", rotulo: "Gatilhos", tipo: "lista-texto" },
+      ],
+    },
+  ],
 }
 
 /** §3.7.11 — caixa/fluxo-de-caixa (coleção com saldo; bom para resumo negativo). */
@@ -456,7 +477,48 @@ export const docPerfilClienteIdeal: ContentDoc = {
     objecoes: ["Não tenho tempo para planilha", "Meu contador já resolve isso"],
     quanto_paga_hoje: 89,
   },
-  itens: [],
+  itens: [
+    {
+      id: "p1a2b3c4d5",
+      colecao: "personas",
+      nome: "O Dono-Fundador",
+      arquetipo: "dono de indústria que decide sozinho e quer a marca à altura do produto",
+      perfil: "Dono, sócio ou CEO de indústria de R$ 1,5 a 50 mi; fábrica própria, vende por varejo e representantes (hipótese)",
+      psicografia: "Identidade forte no produto e na fábrica, fraca em marca.",
+      momento:
+        "A empresa cresceu mais rápido que a marca: embalagem, catálogo e redes sociais parecem de empresas diferentes. Quer ser reconhecido como marca, não só como fornecedor ou fábrica.",
+      contexto: "Ambiente: fábrica, representantes, gráficas de embalagem e feiras do setor.",
+      gatilhos: [
+        "Lançamento de linha ou de produto novo (SKU), com embalagem e material de venda para refazer",
+        "Entrada em um novo canal: rede varejista, distribuidor ou marketplace",
+        "Concorrente que redesenhou a marca e passou a ocupar a gôndola ou o catálogo",
+        "Indicação de alguém de confiança: agência parceira, gráfica de embalagem ou contador",
+        "Representante pedindo material novo",
+      ],
+    },
+    {
+      id: "p2b3c4d5e6",
+      colecao: "personas",
+      nome: "A Liderança de Marketing Enxuta",
+      arquetipo: "quem mantém a marca com time de 1 a 5 pessoas e muita troca de gente",
+      perfil: "Gerente, coordenador ou diretor de marketing de empresa de R$ 1,5 a 50 mi (hipótese)",
+      psicografia: "Sobrecarregada, usa IA todo dia e se incomoda com o resultado genérico.",
+      momento: "Gasta o tempo corrigindo material de agências e redatores em vez de pensar estratégia.",
+      contexto: "Equipe pequena, alta rotatividade, agências com briefings diferentes.",
+      gatilhos: ["Troca de pessoas no time de marketing", "Chegada de nova agência ou redator", "Uso de IA sem regras de marca"],
+    },
+    {
+      id: "p3c4d5e6f7",
+      colecao: "personas",
+      nome: "A Liderança de Produto Digital",
+      arquetipo: "time de SaaS que precisa da marca falando a mesma língua do produto",
+      perfil: "Fundador, CMO ou head de design de SaaS (hipótese)",
+      psicografia: "",
+      momento: "",
+      contexto: "",
+      gatilhos: [],
+    },
+  ],
   corpo:
     "## Notas\n\n- Entrevistei 4 manicures; 3 usam o Pix pessoal para tudo.\n- Hipótese: o gatilho mais forte é o **DAS atrasado**, não o desejo de lucro.\n",
   extras: {},
