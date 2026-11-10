@@ -1,9 +1,9 @@
 // Briefing do negócio: junta as respostas das 13 páginas e pede ao Claude (CLI local) uma análise.
-// Roda só no servidor. Usa o `claude` já instalado e logado na máquina (sem chave de API), via lib/ia/claude-cli.
+// Roda só no servidor. Usa o provedor de IA configurado (API da Anthropic ou CLI local), via lib/ia/provedor.
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 
-import { chamarClaude } from "@/lib/ia/claude-cli"
+import { obterProvedorIA } from "@/lib/ia/provedor"
 import { calcularCompletude } from "@/lib/content/completude"
 import { exportarMarkdown } from "@/lib/content/exportar-md"
 import { obterDefinicao } from "@/lib/content/schemas"
@@ -53,7 +53,7 @@ export async function completudeGeral(): Promise<number> {
 export async function gerarBriefing(): Promise<BriefingSalvo> {
   const docs = await listarDocumentos()
   const completude = await completudeGeral()
-  const texto = await chamarClaude(exportarMarkdown(docs), INSTRUCOES)
+  const texto = await obterProvedorIA().gerar(exportarMarkdown(docs), INSTRUCOES)
   const geradoEm = new Date().toISOString()
 
   await mkdir(path.dirname(ARQUIVO), { recursive: true })

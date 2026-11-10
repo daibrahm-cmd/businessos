@@ -1,6 +1,6 @@
 // IA por página (botões "Pedir à IA" e "Gerar relatório" do modal Editar).
 // Roda só no servidor. Nada é salvo aqui: o resultado volta para o rascunho do editor, que a pessoa revisa e salva.
-import { chamarClaude } from "@/lib/ia/claude-cli"
+import { obterProvedorIA } from "@/lib/ia/provedor"
 import { exportarMarkdown } from "@/lib/content/exportar-md"
 import { obterDefinicao } from "@/lib/content/schemas"
 import { schemaEscritaDoCampo, valorVazio } from "@/lib/content/schemas/build"
@@ -84,7 +84,7 @@ ${REGRAS}
 - Só inclua um campo se o contexto der base real para ele; na dúvida, omita o campo.
 - Respeite o tipo: seleção só com um dos valores permitidos; número como número; lista como lista de textos.`
 
-  const resposta = await chamarClaude(exportarMarkdown(docs), instrucoes)
+  const resposta = await obterProvedorIA().gerar(exportarMarkdown(docs), instrucoes)
   return validarSugestoes(def, extrairJson(resposta), doc.campos)
 }
 
@@ -101,5 +101,5 @@ ${REGRAS}
 - Se faltar informação, diga o que falta em vez de preencher.
 Responda só com o Markdown do relatório.`
 
-  return chamarClaude(exportarMarkdown(docs), instrucoes)
+  return obterProvedorIA().gerar(exportarMarkdown(docs), instrucoes)
 }

@@ -1,6 +1,7 @@
 // Chamada ao Claude pelo CLI local (`claude -p`), sem chave de API. Roda só no servidor.
 // Sem ferramentas: o modelo só lê o contexto (stdin) e escreve a resposta.
 import { spawn } from "node:child_process"
+import type { ProvedorIA } from "@/lib/ia/provedor"
 
 const TEMPO_LIMITE_PADRAO_MS = 4 * 60 * 1000
 
@@ -42,4 +43,9 @@ export function chamarClaude(
     })
     filho.stdin.end(contexto)
   })
+}
+
+/** O CLI como implementação do contrato `ProvedorIA` (maxTokens não se aplica aqui). */
+export const provedorCli: ProvedorIA = {
+  gerar: (contexto, instrucoes, opcoes) => chamarClaude(contexto, instrucoes, opcoes?.tempoLimiteMs),
 }
