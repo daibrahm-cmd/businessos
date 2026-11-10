@@ -1,0 +1,4 @@
+# Nada de variáveis de ambiente no upload: elas vão só pelo `vercel env`.
+.env*
+.next
+node_modules
